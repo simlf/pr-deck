@@ -1,0 +1,295 @@
+package tui
+
+import (
+	"context"
+	"fmt"
+	"regexp"
+	"strings"
+	"testing"
+	"time"
+
+	tea "github.com/charmbracelet/bubbletea"
+
+	"prdeck/internal/cache"
+	"prdeck/internal/config"
+	"prdeck/internal/deck"
+	"prdeck/internal/model"
+	"prdeck/internal/state"
+)
+
+type fakeGH struct {
+	prs    map[string]model.PR
+	merged []string
+}
+
+func (f *fakeGH) SearchOpen(context.Context) ([]model.PR, error) {
+	var out []model.PR
+	for _, p := range f.prs {
+		if p.State == "OPEN" {
+			out = append(out, p)
+		}
+	}
+	return out, nil
+}
+func (f *fakeGH) Get(_ context.Context, r string, n int) (model.PR, error) {
+	p, ok := f.prs[model.Key(r, n)]
+	if !ok {
+		return p, fmt.Errorf("nf")
+	}
+	return p, nil
+}
+func (f *fakeGH) Merge(_ context.Context, p model.PR, _ string) error {
+	x := f.prs[p.Key()]
+	x.State = "MERGED"
+	f.prs[p.Key()] = x
+	f.merged = append(f.merged, p.Key())
+	return nil
+}
+func (f *fakeGH) RerunFailed(context.Context, model.PR) (int, error) { return 1, nil }
+
+var ansi = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+func plain(s string) string { return ansi.ReplaceAllString(s, "") }
+
+var now = time.Date(2026, 10, 23, 10, 0, 0, 0, time.Local) // Friday
+
+func fixture(t *testing.T) (*Model, *fakeGH) {
+	t.Helper()
+	cfg := config.Default()
+	cfg.Deck.StateDir, cfg.Deck.CacheDir = t.TempDir(), t.TempDir()
+	cfg.Review.Channel = "#team-reviews"
+	cfg.ProductionLabel = "prod-change"
+	cfg.MergeWindows.AppliesTo = []string{"env:prod"}
+	cfg.MergeWindows.Days = []string{"mon", "tue", "wed", "thu"}
+	cfg.MergeWindows.Slots = []string{"09:30-11:40", "14:00-16:00"}
+	old := now.Add(-48 * time.Hour)
+	posted := now.Add(-6 * 24 * time.Hour)
+	mk := func(p model.PR) model.PR {
+		p.State, p.Mergeable, p.LastCommitAt, p.CreatedAt = "OPEN", "MERGEABLE", old, old
+		if p.CI == "" {
+			p.CI = model.CIPass
+		}
+		p.URL = "https://github.example/" + p.Repo + fmt.Sprintf("/pull/%d", p.Number)
+		return p
+	}
+	topic := "Allow bigger uploads (ingress 25 MB)"
+	prs := []model.PR{
+		mk(model.PR{Repo: "acme/infra-config", Number: 318, Env: "eng", Ticket: "OPS-412", Topic: topic, TicketStatus: "In Progress",
+			ReviewDecision: model.ReviewApproved, Reviewer: "@dana", Branch: "ops-412-body-size-eng", Purpose: "Bigger uploads on eng first.",
+			Why: &model.Why{Prompt: "bump the ingress body size to 25m, eng first", Cwd: "/w/infra", At: old}}),
+		mk(model.PR{Repo: "acme/infra-config", Number: 319, Env: "prod", Ticket: "OPS-412", Topic: topic, TicketStatus: "In Progress",
+			ReviewDecision: model.ReviewApproved, Reviewer: "@dana", Branch: "ops-412-body-size-prod", Body: "Merge-after: #318",
+			Labels: []string{"prod-change"}, Purpose: "Same limit for prod."}),
+		mk(model.PR{Repo: "acme/runbooks", Number: 88, Ticket: "OPS-415", Topic: "Renew redis TLS certs before 1 Nov",
+			ReviewDecision: model.ReviewRequired, PostedKnown: true, Posted: &posted, Purpose: "Write the rotation steps down."}),
+		mk(model.PR{Repo: "acme/api-gateway", Number: 1042, Ticket: "OPS-398", Topic: "Rate-limit /v2/search", CI: model.CIFail,
+			ReviewDecision: model.ReviewChanges, Reviewer: "@lee", ReviewNote: "lower burst to 20"}),
+		mk(model.PR{Repo: "acme/terraform-modules", Number: 203, Purpose: "AWS provider bump", ReviewDecision: model.ReviewRequired, PostedKnown: true}),
+	}
+	gh := &fakeGH{prs: map[string]model.PR{}}
+	for _, p := range prs {
+		gh.prs[p.Key()] = p
+	}
+	dk := &deck.Deck{Cfg: cfg, GH: gh, Store: state.Store{Dir: cfg.Deck.StateDir}, Now: func() time.Time { return now }}
+	if err := cache.Save(dk.SnapshotPath(), model.Snapshot{At: now, PRs: prs}); err != nil {
+		t.Fatal(err)
+	}
+	m := New(dk, Options{})
+	m.width, m.height = 140, 40
+	return m, gh
+}
+
+func press(m *Model, keys ...string) tea.Cmd {
+	var last tea.Cmd
+	for _, k := range keys {
+		var msg tea.KeyMsg
+		switch k {
+		case "enter":
+			msg = tea.KeyMsg{Type: tea.KeyEnter}
+		case "esc":
+			msg = tea.KeyMsg{Type: tea.KeyEsc}
+		case "backspace":
+			msg = tea.KeyMsg{Type: tea.KeyBackspace}
+		default:
+			msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)}
+		}
+		_, last = m.Update(msg)
+	}
+	return last
+}
+
+func run(m *Model, cmd tea.Cmd) {
+	for cmd != nil {
+		msg := cmd()
+		if b, ok := msg.(tea.BatchMsg); ok {
+			for _, c := range b {
+				run(m, c)
+			}
+			return
+		}
+		_, cmd = m.Update(msg)
+	}
+}
+
+func TestBoardTopicsFirst(t *testing.T) {
+	m, _ := fixture(t)
+	out := plain(m.View())
+	for _, want := range []string{
+		"▾ Allow bigger uploads (ingress 25 MB) OPS-412 · In Progress",
+		"┌① ● infra-config#318",
+		"└② ◇ infra-config#319 ▲",
+		"waits ①",
+		"✎ changes",
+		"◔ 6d, no review",
+		"○ not posted",
+		"▾ No ticket",
+		"⊘ prod window Fri–Sun closed · opens Mon 26 Oct 09:30",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("board missing %q\n%s", want, out)
+		}
+	}
+	if i, j := strings.Index(out, "Allow bigger uploads"), strings.Index(out, "OPS-412"); i < 0 || j < i {
+		t.Errorf("topic must come before the key")
+	}
+}
+
+func TestMergeFlowPairThenSchedule(t *testing.T) {
+	m, gh := fixture(t)
+	m.cursor = "acme/infra-config#319"
+	press(m, "m")
+	if m.mode != modeConfirm || m.plan.Kind != deck.PlanSibling || !strings.Contains(m.plan.Message, "Merge ① first?") {
+		t.Fatalf("pair guard: mode=%v plan=%+v", m.mode, m.plan)
+	}
+	if !strings.Contains(plain(m.View()), "[y]es [n]o") {
+		t.Fatal("confirm prompt not shown")
+	}
+	run(m, press(m, "y"))
+	if len(gh.merged) != 1 || gh.merged[0] != "acme/infra-config#318" {
+		t.Fatalf("merged = %v", gh.merged)
+	}
+	m.cursor = "acme/infra-config#319"
+	press(m, "m")
+	if m.plan.Kind != deck.PlanSchedule {
+		t.Fatalf("Friday prod merge should offer a schedule: %+v (msg %q)", m.plan, m.msg)
+	}
+	press(m, "y")
+	st, _ := m.dk.Store.Load()
+	if _, ok := st.Schedules["acme/infra-config#319"]; !ok {
+		t.Fatal("schedule not stored")
+	}
+	if !strings.Contains(plain(m.View()), "◷ Mon 09:30") {
+		t.Fatalf("scheduled state not shown:\n%s", plain(m.View()))
+	}
+	press(m, "m")
+	if m.plan.Kind != deck.PlanCancel {
+		t.Fatalf("m on a scheduled PR offers cancel: %+v", m.plan)
+	}
+	press(m, "y")
+	if st, _ := m.dk.Store.Load(); len(st.Schedules) != 0 {
+		t.Fatal("cancel did not remove the schedule")
+	}
+}
+
+func TestCoalescedRunes(t *testing.T) {
+	m, _ := fixture(t)
+	first := m.cursor
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("jj")})
+	ks := m.keys()
+	if m.cursor == first || m.cursor != ks[2] {
+		t.Fatalf("\"jj\" in one message should move twice: %q (keys %v)", m.cursor, ks)
+	}
+}
+
+func TestRefusalsAndFlags(t *testing.T) {
+	m, _ := fixture(t)
+	m.cursor = "acme/runbooks#88"
+	press(m, "m")
+	if m.mode != modeNormal || !strings.Contains(m.msg, "posted in #team-reviews 6d ago") {
+		t.Fatalf("unreviewed merge must be refused with the reason, msg=%q", m.msg)
+	}
+	before := m.view.Count().Flagged
+	press(m, "f")
+	if m.view.Count().Flagged != before-1 || !strings.Contains(m.msg, "until tomorrow") {
+		t.Fatalf("f should clear the flag: %d→%d %q", before, m.view.Count().Flagged, m.msg)
+	}
+}
+
+func TestRecallLayoutAndDrawer(t *testing.T) {
+	m, _ := fixture(t)
+	m.cursor = "acme/infra-config#318"
+	press(m, "R")
+	out := plain(m.View())
+	for _, want := range []string{"PR · purpose", "topic", "Allow bigger uploads", "↳ you asked: \"bump the ingress body size",
+		"pair ①● eng #318 → ②◇ prod #319", "· Merge-after trailer", "Bigger uploads on eng first."} {
+		if !strings.Contains(out, want) {
+			t.Errorf("recall missing %q\n%s", want, out)
+		}
+	}
+	press(m, "s")
+	if !strings.Contains(plain(m.View()), "sort: age") {
+		t.Fatal("s should cycle the sort")
+	}
+}
+
+func TestTopicAliasAndFilter(t *testing.T) {
+	m, _ := fixture(t)
+	m.cursor = "acme/infra-config#318"
+	press(m, "t")
+	for range []rune(m.view.TopicShort(m.view.Snap.PRs[0])) {
+		press(m, "backspace")
+	}
+	press(m, "U", "p", "l", "o", "a", "d", "s", "enter")
+	p, _ := m.selected()
+	if got := m.view.TopicShort(p); got != "Uploads" {
+		t.Fatalf("alias = %q", got)
+	}
+	press(m, "/", "r", "u", "n", "enter")
+	if ks := m.keys(); len(ks) != 1 || ks[0] != "acme/runbooks#88" {
+		t.Fatalf("filter keys = %v", ks)
+	}
+	press(m, "esc")
+	if m.filter != "" {
+		t.Fatal("esc should clear the filter")
+	}
+}
+
+func TestMouseSelectAndFold(t *testing.T) {
+	m, _ := fixture(t)
+	m.View()
+	target := -1
+	for i, ln := range m.lines {
+		if ln.key == "acme/api-gateway#1042" {
+			target = i
+		}
+	}
+	if target < 0 {
+		t.Fatal("row not rendered")
+	}
+	m.Update(tea.MouseMsg{X: 5, Y: m.bodyTop + target - m.offset, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+	if m.cursor != "acme/api-gateway#1042" {
+		t.Fatalf("click selected %q", m.cursor)
+	}
+	for i, ln := range m.lines {
+		if ln.group == "OPS-412" {
+			m.Update(tea.MouseMsg{X: 0, Y: m.bodyTop + i - m.offset, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+		}
+	}
+	if !m.collapsed["OPS-412"] || !strings.Contains(plain(m.View()), "▸ Allow bigger uploads") {
+		t.Fatal("clicking a group header should fold it")
+	}
+}
+
+func TestNarrowWidthStillRenders(t *testing.T) {
+	m, _ := fixture(t)
+	m.width, m.height = 60, 20
+	out := plain(m.View())
+	if !strings.Contains(out, "Allow bigger uploads") || !strings.Contains(out, "infra-config#318") {
+		t.Fatalf("narrow layout lost content:\n%s", out)
+	}
+	for _, l := range strings.Split(out, "\n") {
+		if w := len([]rune(l)); w > 80 {
+			t.Errorf("line too wide (%d): %q", w, l)
+		}
+	}
+}

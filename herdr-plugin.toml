@@ -1,0 +1,66 @@
+# herdr plugin manifest for pr-deck.
+# Install: herdr plugin install <owner>/<repo>  (or link a local clone)
+# Field names follow herdr's bundled API schema (protocol 22). The `prd`
+# binary must be on PATH; the build step below installs it with Go.
+id = "pr-deck"
+name = "pr-deck"
+version = "0.1.0"
+description = "Open PRs grouped by topic, eng → prod merge order, review state and why each PR exists"
+
+[[build]]
+command = ["go", "install", "./cmd/prd"]
+
+# Background loop: refresh, scheduled merges, reminders, sidebar tokens.
+[[startup]]
+command = ["prd", "daemon", "--detach"]
+
+# An agent finishing a turn often just opened a PR: refresh soon.
+[[events]]
+on = "pane.agent_status_changed"
+command = ["prd", "poke"]
+
+[[panes]]
+id = "board"
+title = "pr-deck"
+description = "Board: PRs by topic with pairs, review state and next action"
+placement = "popup"
+width = "90%"
+height = "85%"
+command = ["prd", "open", "--layout", "board"]
+
+[[panes]]
+id = "recall"
+title = "pr-deck · recall"
+description = "End-of-day recall: every open PR with purpose, age and next action"
+placement = "popup"
+width = "95%"
+height = "90%"
+command = ["prd", "open", "--layout", "recall"]
+
+# Bind these to keys in herdr's config with type = "plugin_action"
+# (for example ctrl+b p for the board).
+[[actions]]
+id = "board"
+title = "pr-deck: board"
+contexts = ["global", "workspace", "pane"]
+command = ["prd", "herdr-open", "board"]
+
+[[actions]]
+id = "recall"
+title = "pr-deck: end-of-day recall"
+contexts = ["global", "workspace", "pane"]
+command = ["prd", "herdr-open", "recall"]
+
+[[actions]]
+id = "why"
+title = "pr-deck: why this PR"
+contexts = ["pane", "selection"]
+command = ["prd", "herdr-open", "board", "--focus-from-context"]
+
+# Ctrl/cmd-click a PR link in any pane (needs ui.mouse_capture) to open its
+# "why" in pr-deck instead of the browser.
+[[link_handlers]]
+id = "pr-link"
+title = "Open in pr-deck"
+pattern = "^https?://[^/]+/[^/]+/[^/]+/pull/[0-9]+"
+action = "why"

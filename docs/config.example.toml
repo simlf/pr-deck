@@ -1,0 +1,67 @@
+# pr-deck example configuration.
+# Copy to ~/.config/pr-deck/config.toml (or point PRD_CONFIG at it) and
+# replace every example value with your own. Tokens never go in this file:
+# they come from the environment or from a *_cmd you choose (keychain, pass, ...).
+
+# Environments in merge order: a PR tagged with an earlier env merges first.
+envs = ["eng", "prod"]
+
+# PRs whose plan changes production carry this GitHub label (shown as ▲).
+production_label = "prod-change"
+# ...and also obey the merge windows below.
+production_label_is_critical = true
+
+[github]
+api_url = "https://api.github.com"     # GitHub Enterprise: https://ghe.example/api/v3
+web_host = "github.com"                # host in PR URLs (used to read agent transcripts)
+query = ""                             # extra search qualifiers, e.g. "org:example-org"
+merge_method = "squash"                # squash | merge | rebase
+token_env = ["GITHUB_TOKEN", "GH_TOKEN"]
+token_cmd = ["gh", "auth", "token"]    # used when no token_env is set
+
+[jira]
+base_url = "https://example.atlassian.net"
+email = "you@example.com"
+token_env = "JIRA_API_TOKEN"
+# token_cmd = ["security", "find-generic-password", "-s", "pr-deck-jira", "-w"]
+projects = []                          # e.g. ["OPS"]; empty accepts any KEY-123
+short_len = 22                         # max length of the short topic form (t renames it)
+
+[review]
+channel = "#team-reviews"              # where review requests are posted; "" turns tracking off
+remind_after = "5h"                    # posted, still no review → ◔ overdue + one toast
+token_env = "SLACK_TOKEN"              # user token with search:read (read-only: pr-deck never posts)
+# token_cmd = ["security", "find-generic-password", "-s", "pr-deck-slack", "-w"]
+skip_drafts = true
+
+[merge_windows]
+# Critical PRs may only merge inside these windows. Remove `days` to disable.
+applies_to = ["env:prod", "label:critical"]
+days = ["mon", "tue", "wed", "thu"]
+slots = ["09:30-11:40", "14:00-16:00"]
+timezone = "Local"
+block_holiday = true
+block_day_before_holiday = true
+holidays_ics = "https://calendar.example/team-holidays.ics"   # URL or file path
+holidays = []                          # extra YYYY-MM-DD dates
+outside_window = "schedule"            # schedule (m offers the next opening) | block
+remind_before = "10m"                  # toast before a scheduled merge fires
+missed_window = "next_window"          # asleep at the opening: catch up if still open, else roll over
+
+[why]
+transcripts_dir = "~/.claude/projects" # Claude Code session transcripts
+
+[herdr]
+# socket_path defaults to $HERDR_SOCKET_PATH (set inside herdr).
+source = "custom:pr-deck"
+toasts = true
+position = "top-right"
+recall_at = "17:30"                    # daily "untouched today" nudge; "" disables
+# Outside herdr, toasts can go through any command:
+# notify_cmd = ["terminal-notifier", "-title", "{title}", "-message", "{body}"]
+
+[deck]
+refresh = "60s"
+stale_warn = "10m"
+# open_cmd = ["open"]
+# copy_cmd = ["pbcopy"]
