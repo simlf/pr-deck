@@ -74,15 +74,15 @@ func fixture(t *testing.T) (*Model, *fakeGH) {
 	}
 	topic := "Allow bigger uploads (ingress 25 MB)"
 	prs := []model.PR{
-		mk(model.PR{Repo: "acme/infra-config", Number: 318, Env: "eng", Ticket: "OPS-412", Topic: topic, TicketStatus: "In Progress",
-			ReviewDecision: model.ReviewApproved, Reviewer: "@dana", Branch: "ops-412-body-size-eng", Purpose: "Bigger uploads on eng first.",
+		mk(model.PR{Repo: "acme/infra-config", Number: 318, Env: "eng", Ticket: "ABC-412", Topic: topic, TicketStatus: "In Progress",
+			ReviewDecision: model.ReviewApproved, Reviewer: "@dana", Branch: "abc-412-body-size-eng", Purpose: "Bigger uploads on eng first.",
 			Why: &model.Why{Prompt: "bump the ingress body size to 25m, eng first", Cwd: "/w/infra", At: old}}),
-		mk(model.PR{Repo: "acme/infra-config", Number: 319, Env: "prod", Ticket: "OPS-412", Topic: topic, TicketStatus: "In Progress",
-			ReviewDecision: model.ReviewApproved, Reviewer: "@dana", Branch: "ops-412-body-size-prod", Body: "Merge-after: #318",
+		mk(model.PR{Repo: "acme/infra-config", Number: 319, Env: "prod", Ticket: "ABC-412", Topic: topic, TicketStatus: "In Progress",
+			ReviewDecision: model.ReviewApproved, Reviewer: "@dana", Branch: "abc-412-body-size-prod", Body: "Merge-after: #318",
 			Labels: []string{"prod-change"}, Purpose: "Same limit for prod."}),
-		mk(model.PR{Repo: "acme/runbooks", Number: 88, Ticket: "OPS-415", Topic: "Renew redis TLS certs before 1 Nov",
+		mk(model.PR{Repo: "acme/runbooks", Number: 88, Ticket: "ABC-415", Topic: "Renew redis TLS certs before 1 Nov",
 			ReviewDecision: model.ReviewRequired, PostedKnown: true, Posted: &posted, Purpose: "Write the rotation steps down."}),
-		mk(model.PR{Repo: "acme/api-gateway", Number: 1042, Ticket: "OPS-398", Topic: "Rate-limit /v2/search", CI: model.CIFail,
+		mk(model.PR{Repo: "acme/api-gateway", Number: 1042, Ticket: "ABC-398", Topic: "Rate-limit /v2/search", CI: model.CIFail,
 			ReviewDecision: model.ReviewChanges, Reviewer: "@lee", ReviewNote: "lower burst to 20"}),
 		mk(model.PR{Repo: "acme/terraform-modules", Number: 203, Purpose: "AWS provider bump", ReviewDecision: model.ReviewRequired, PostedKnown: true}),
 	}
@@ -135,7 +135,7 @@ func TestBoardTopicsFirst(t *testing.T) {
 	m, _ := fixture(t)
 	out := plain(m.View())
 	for _, want := range []string{
-		"▾ Allow bigger uploads (ingress 25 MB) OPS-412 · In Progress",
+		"▾ Allow bigger uploads (ingress 25 MB) ABC-412 · In Progress",
 		"┌① ● infra-config#318",
 		"└② ◇ infra-config#319 ▲",
 		"waits ①",
@@ -149,7 +149,7 @@ func TestBoardTopicsFirst(t *testing.T) {
 			t.Errorf("board missing %q\n%s", want, out)
 		}
 	}
-	if i, j := strings.Index(out, "Allow bigger uploads"), strings.Index(out, "OPS-412"); i < 0 || j < i {
+	if i, j := strings.Index(out, "Allow bigger uploads"), strings.Index(out, "ABC-412"); i < 0 || j < i {
 		t.Errorf("topic must come before the key")
 	}
 }
@@ -271,11 +271,11 @@ func TestMouseSelectAndFold(t *testing.T) {
 		t.Fatalf("click selected %q", m.cursor)
 	}
 	for i, ln := range m.lines {
-		if ln.group == "OPS-412" {
+		if ln.group == "ABC-412" {
 			m.Update(tea.MouseMsg{X: 0, Y: m.bodyTop + i - m.offset, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
 		}
 	}
-	if !m.collapsed["OPS-412"] || !strings.Contains(plain(m.View()), "▸ Allow bigger uploads") {
+	if !m.collapsed["ABC-412"] || !strings.Contains(plain(m.View()), "▸ Allow bigger uploads") {
 		t.Fatal("clicking a group header should fold it")
 	}
 }

@@ -13,27 +13,27 @@ func TestGet(t *testing.T) {
 		if !ok || u != "me@example.test" || p != "tok" {
 			t.Errorf("basic auth = %q %q %v", u, p, ok)
 		}
-		if r.URL.Path != "/rest/api/2/issue/OPS-412" {
+		if r.URL.Path != "/rest/api/2/issue/ABC-412" {
 			t.Errorf("path = %s", r.URL.Path)
 		}
-		w.Write([]byte(`{"key":"OPS-412","fields":{"summary":"Allow bigger uploads (ingress 25 MB)","status":{"name":"In Progress"}}}`))
+		w.Write([]byte(`{"key":"ABC-412","fields":{"summary":"Allow bigger uploads (ingress 25 MB)","status":{"name":"In Progress"}}}`))
 	}))
 	defer srv.Close()
 	c := &Client{HTTP: srv.Client(), BaseURL: srv.URL, Email: "me@example.test", Token: "tok"}
-	tk, err := c.Get(context.Background(), "OPS-412")
+	tk, err := c.Get(context.Background(), "ABC-412")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if tk.Summary != "Allow bigger uploads (ingress 25 MB)" || tk.Status != "In Progress" {
 		t.Fatalf("ticket = %+v", tk)
 	}
-	if got := c.BrowseURL("OPS-412"); got != srv.URL+"/browse/OPS-412" {
+	if got := c.BrowseURL("ABC-412"); got != srv.URL+"/browse/ABC-412" {
 		t.Fatalf("browse = %s", got)
 	}
 }
 
 func TestGetUnconfigured(t *testing.T) {
-	if _, err := (&Client{}).Get(context.Background(), "OPS-1"); err == nil {
+	if _, err := (&Client{}).Get(context.Background(), "ABC-1"); err == nil {
 		t.Fatal("want error without base url")
 	}
 }

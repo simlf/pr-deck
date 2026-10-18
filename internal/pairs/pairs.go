@@ -46,7 +46,7 @@ func DetectEnv(envs []string, branch, title string, labels []string) string {
 }
 
 // Stem strips a trailing env marker from a branch name so twins compare
-// equal: "ops-412-body-size-eng" and "ops-412-body-size-prod" share a stem.
+// equal: "abc-412-body-size-eng" and "abc-412-body-size-prod" share a stem.
 func Stem(envs []string, branch string) string {
 	lb := strings.ToLower(branch)
 	for _, e := range envs {

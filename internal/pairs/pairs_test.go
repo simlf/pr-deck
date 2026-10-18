@@ -9,7 +9,7 @@ import (
 var envs = []string{"eng", "prod"}
 
 func TestDetectEnv(t *testing.T) {
-	if got := DetectEnv(envs, "ops-412-body-size-prod", "", nil); got != "prod" {
+	if got := DetectEnv(envs, "abc-412-body-size-prod", "", nil); got != "prod" {
 		t.Fatalf("branch suffix: %q", got)
 	}
 	if got := DetectEnv(envs, "feature", "ingress: body size (eng)", nil); got != "eng" {
@@ -24,7 +24,7 @@ func TestDetectEnv(t *testing.T) {
 }
 
 func TestStem(t *testing.T) {
-	if a, b := Stem(envs, "ops-412-body-size-eng"), Stem(envs, "ops-412-body-size-prod"); a != b {
+	if a, b := Stem(envs, "abc-412-body-size-eng"), Stem(envs, "abc-412-body-size-prod"); a != b {
 		t.Fatalf("stems differ: %q %q", a, b)
 	}
 }
@@ -49,9 +49,9 @@ func TestLinkTrailer(t *testing.T) {
 
 func TestLinkHeuristic(t *testing.T) {
 	prs := []model.PR{
-		{Repo: "acme/k8s", Number: 78, Env: "prod", Ticket: "OPS-415", Branch: "ops-415-redis-certs-prod"},
-		{Repo: "acme/k8s", Number: 77, Env: "eng", Ticket: "OPS-415", Branch: "ops-415-redis-certs-eng"},
-		{Repo: "acme/k8s", Number: 80, Env: "prod", Ticket: "OPS-500", Branch: "ops-500-other-prod"},
+		{Repo: "acme/k8s", Number: 78, Env: "prod", Ticket: "ABC-415", Branch: "abc-415-redis-certs-prod"},
+		{Repo: "acme/k8s", Number: 77, Env: "eng", Ticket: "ABC-415", Branch: "abc-415-redis-certs-eng"},
+		{Repo: "acme/k8s", Number: 80, Env: "prod", Ticket: "ABC-500", Branch: "abc-500-other-prod"},
 	}
 	Link(prs, envs, nil)
 	if prs[1].Pair == nil || prs[1].Pair.Order != 1 || !prs[1].Pair.Inferred {

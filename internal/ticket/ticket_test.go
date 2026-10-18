@@ -3,13 +3,13 @@ package ticket
 import "testing"
 
 func TestExtractOrder(t *testing.T) {
-	if got := Extract(nil, "ops-412-body-size-eng", "OPS-999 other", ""); got != "OPS-412" {
+	if got := Extract(nil, "abc-412-body-size-eng", "ABC-999 other", ""); got != "ABC-412" {
 		t.Fatalf("branch should win, got %q", got)
 	}
-	if got := Extract(nil, "main", "OPS-415 redis: rotate certs", ""); got != "OPS-415" {
+	if got := Extract(nil, "main", "ABC-415 redis: rotate certs", ""); got != "ABC-415" {
 		t.Fatalf("title fallback, got %q", got)
 	}
-	if got := Extract(nil, "fix", "bump", "Refs OPS-398"); got != "OPS-398" {
+	if got := Extract(nil, "fix", "bump", "Refs ABC-398"); got != "ABC-398" {
 		t.Fatalf("body fallback, got %q", got)
 	}
 	if got := Extract(nil, "utf-8-fix", "sha-256 support", ""); got != "" {
@@ -18,7 +18,7 @@ func TestExtractOrder(t *testing.T) {
 }
 
 func TestExtractProjects(t *testing.T) {
-	if got := Extract([]string{"ops"}, "feat-12-thing", "OPS-7 x", ""); got != "OPS-7" {
+	if got := Extract([]string{"abc"}, "feat-12-thing", "ABC-7 x", ""); got != "ABC-7" {
 		t.Fatalf("allow-list should skip FEAT, got %q", got)
 	}
 }
@@ -37,12 +37,12 @@ func TestShort(t *testing.T) {
 
 func TestStripKey(t *testing.T) {
 	for in, want := range map[string]string{
-		"OPS-412 ingress: body size 25m (eng)": "ingress: body size 25m (eng)",
-		"[OPS-412] ingress":                    "ingress",
-		"ingress fix (ops-412)":                "ingress fix",
-		"OPS-412":                              "",
+		"ABC-412 ingress: body size 25m (eng)": "ingress: body size 25m (eng)",
+		"[ABC-412] ingress":                    "ingress",
+		"ingress fix (abc-412)":                "ingress fix",
+		"ABC-412":                              "",
 	} {
-		if got := StripKey(in, "OPS-412"); got != want {
+		if got := StripKey(in, "ABC-412"); got != want {
 			t.Errorf("StripKey(%q) = %q, want %q", in, got, want)
 		}
 	}

@@ -11,7 +11,7 @@ func TestUpdateRoundTrip(t *testing.T) {
 	now := time.Date(2026, 10, 23, 10, 0, 0, 0, time.UTC)
 	_, err := st.Update(func(s *State) error {
 		s.Schedules["a/r#1"] = Schedule{At: now.Add(time.Hour), Created: now}
-		s.Aliases["OPS-1"] = "Bigger uploads"
+		s.Aliases["ABC-1"] = "Bigger uploads"
 		return nil
 	})
 	if err != nil {
@@ -21,7 +21,7 @@ func TestUpdateRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !s.Schedules["a/r#1"].At.Equal(now.Add(time.Hour)) || s.Aliases["OPS-1"] != "Bigger uploads" {
+	if !s.Schedules["a/r#1"].At.Equal(now.Add(time.Hour)) || s.Aliases["ABC-1"] != "Bigger uploads" {
 		t.Fatalf("round trip lost data: %+v", s)
 	}
 }

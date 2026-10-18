@@ -4,7 +4,7 @@ Terminal overlay to see work in progress: open PRs grouped by the topic (Jira ti
 
 `prd` shows your open GitHub PRs:
 
-- **Grouped by topic, not by key.** A group reads "Allow bigger uploads (ingress 25 MB)", with `OPS-412` small and grey after it. Topics come from the Jira summary, and `t` renames the short form used in tight spots.
+- **Grouped by topic, not by key.** A group reads "Allow bigger uploads (ingress 25 MB)", with `ABC-412` small and grey after it. Topics come from the Jira summary, and `t` renames the short form used in tight spots.
 - **Eng → prod chains in merge order.** `┌①` and `└②` connect the two halves of a pair, and the prod half shows `◇ waits ①` until eng merges.
 - **Review state on every PR:** ✓ approved, ✎ changes requested, ◌ posted, ◔ overdue (posted in the review channel and still unreviewed after 5h), ○ not posted.
 - **Why the PR exists:** the `Purpose:` line from the PR body plus the exact prompt you gave the agent that opened it, read from Claude Code transcripts.
@@ -126,7 +126,7 @@ Merge-after: owner/repo#318    # ...or after a PR in another repo
 ```
 
 - `Purpose:` is the one-liner shown everywhere, so pr-deck makes no LLM calls.
-- `Merge-after:` declares an eng → prod (or any ordered) chain. Without it, pr-deck infers pairs from the same ticket and the same branch stem with a different env suffix (`ops-412-body-size-eng` and `-prod`). It draws inferred pairs with a dashed `┆` until you confirm them with `p`.
+- `Merge-after:` declares an eng → prod (or any ordered) chain. Without it, pr-deck infers pairs from the same ticket and the same branch stem with a different env suffix (`abc-412-body-size-eng` and `-prod`). It draws inferred pairs with a dashed `┆` until you confirm them with `p`.
 - Put the env in the branch suffix (`-eng`, `-prod`), a title tag (`(prod)`) or an `env:prod` label.
 
 ## Where the data comes from

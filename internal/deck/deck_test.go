@@ -95,11 +95,11 @@ func scenario() *fakeGH {
 		return p
 	}
 	prs := []model.PR{
-		mk("infra-config", 318, "ops-412-body-size-eng", "Purpose: Bigger uploads on eng first.", nil),
-		mk("infra-config", 319, "ops-412-body-size-prod", "Purpose: Same limit for prod.\nMerge-after: #318", func(p *model.PR) {
+		mk("infra-config", 318, "abc-412-body-size-eng", "Purpose: Bigger uploads on eng first.", nil),
+		mk("infra-config", 319, "abc-412-body-size-prod", "Purpose: Same limit for prod.\nMerge-after: #318", func(p *model.PR) {
 			p.Labels = []string{"prod-change"}
 		}),
-		mk("runbooks", 88, "ops-415-runbook", "", func(p *model.PR) { p.ReviewDecision = model.ReviewRequired; p.Reviewer = "" }),
+		mk("runbooks", 88, "abc-415-runbook", "", func(p *model.PR) { p.ReviewDecision = model.ReviewRequired; p.Reviewer = "" }),
 		mk("terraform-modules", 203, "bump-aws-provider", "Purpose: AWS provider bump.", func(p *model.PR) {
 			p.ReviewDecision = model.ReviewRequired
 		}),
@@ -131,8 +131,8 @@ func newDeck(t *testing.T, gh *fakeGH, now time.Time) *Deck {
 	return &Deck{
 		Cfg: cfg, GH: gh, Store: state.Store{Dir: cfg.Deck.StateDir}, Now: func() time.Time { return now },
 		Jira: fakeJira{
-			"OPS-412": {Key: "OPS-412", Summary: "Allow bigger uploads (ingress 25 MB)", Status: "In Progress"},
-			"OPS-415": {Key: "OPS-415", Summary: "Renew redis TLS certs before 1 Nov", Status: "In Progress"},
+			"ABC-412": {Key: "ABC-412", Summary: "Allow bigger uploads (ingress 25 MB)", Status: "In Progress"},
+			"ABC-415": {Key: "ABC-415", Summary: "Renew redis TLS certs before 1 Nov", Status: "In Progress"},
 		},
 		Slack: fakeSlack{"https://github.example/acme/runbooks/pull/88": now.Add(-6 * 24 * time.Hour)},
 	}
@@ -168,13 +168,13 @@ func TestRefreshEnriches(t *testing.T) {
 	d := newDeck(t, gh, tue1102)
 	v := view(t, d, tue1102)
 	prod := get(t, v, "acme/infra-config#319")
-	if prod.Ticket != "OPS-412" || prod.Topic != "Allow bigger uploads (ingress 25 MB)" || prod.Env != "prod" {
+	if prod.Ticket != "ABC-412" || prod.Topic != "Allow bigger uploads (ingress 25 MB)" || prod.Env != "prod" {
 		t.Fatalf("ticket/env enrichment: %+v", prod)
 	}
 	if prod.Pair == nil || prod.Pair.Order != 2 || prod.Pair.After != "acme/infra-config#318" {
 		t.Fatalf("pair: %+v", prod.Pair)
 	}
-	if prod.Purpose != "Same limit for prod." || prod.TicketURL != "https://jira.example/browse/OPS-412" {
+	if prod.Purpose != "Same limit for prod." || prod.TicketURL != "https://jira.example/browse/ABC-412" {
 		t.Fatalf("purpose/url: %q %q", prod.Purpose, prod.TicketURL)
 	}
 	rb := get(t, v, "acme/runbooks#88")
@@ -439,7 +439,7 @@ func TestSlowSourcesAreCached(t *testing.T) {
 	d.Now = func() time.Time { return now }
 	d.Refresh(context.Background())
 	j1, s1 := cj.calls, cs.calls
-	if j1 != 2 || s1 != 2 { // OPS-412, OPS-415; runbooks#88 and terraform#203
+	if j1 != 2 || s1 != 2 { // ABC-412, ABC-415; runbooks#88 and terraform#203
 		t.Fatalf("first refresh: jira=%d slack=%d", j1, s1)
 	}
 	now = now.Add(time.Minute)
@@ -459,7 +459,7 @@ func TestSlowSourcesAreCached(t *testing.T) {
 
 func TestTopicNeverJustAKeyWithoutJira(t *testing.T) {
 	v := View{Cfg: config.Default()}
-	p := model.PR{Ticket: "OPS-412", Title: "OPS-412 ingress: body size 25m (prod)"}
+	p := model.PR{Ticket: "ABC-412", Title: "ABC-412 ingress: body size 25m (prod)"}
 	if got := v.Topic(p); got != "ingress: body size 25m (prod)" {
 		t.Fatalf("title fallback = %q", got)
 	}

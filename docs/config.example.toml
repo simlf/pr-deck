@@ -24,7 +24,7 @@ base_url = "https://example.atlassian.net"
 email = "you@example.com"
 token_env = "JIRA_API_TOKEN"
 # token_cmd = ["security", "find-generic-password", "-s", "pr-deck-jira", "-w"]
-projects = []                          # e.g. ["OPS"]; empty accepts any KEY-123
+projects = []                          # e.g. ["ABC"]; empty accepts any KEY-123
 short_len = 22                         # max length of the short topic form (t renames it)
 
 [review]

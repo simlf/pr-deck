@@ -29,10 +29,10 @@ func testView(t *testing.T) deck.View {
 	old := now.Add(-48 * time.Hour)
 	prs := []model.PR{
 		{Repo: "acme/infra-config", Number: 318, State: "OPEN", Env: "eng", CI: model.CIPass, ReviewDecision: model.ReviewApproved,
-			Branch: "ops-412-body-size-eng", Ticket: "OPS-412", Topic: "Allow bigger uploads (ingress 25 MB)", LastCommitAt: old},
+			Branch: "abc-412-body-size-eng", Ticket: "ABC-412", Topic: "Allow bigger uploads (ingress 25 MB)", LastCommitAt: old},
 		{Repo: "acme/infra-config", Number: 319, State: "OPEN", Env: "prod", CI: model.CIPass, ReviewDecision: model.ReviewApproved,
-			Branch: "ops-412-body-size-prod", Ticket: "OPS-412", Topic: "Allow bigger uploads (ingress 25 MB)", Body: "Merge-after: #318", LastCommitAt: old},
-		{Repo: "acme/api-gateway", Number: 1042, State: "OPEN", CI: model.CIFail, Branch: "ops-398-rate-limit", LastCommitAt: now},
+			Branch: "abc-412-body-size-prod", Ticket: "ABC-412", Topic: "Allow bigger uploads (ingress 25 MB)", Body: "Merge-after: #318", LastCommitAt: old},
+		{Repo: "acme/api-gateway", Number: 1042, State: "OPEN", CI: model.CIFail, Branch: "abc-398-rate-limit", LastCommitAt: now},
 	}
 	pairs.Link(prs, cfg.Envs, nil)
 	var st state.State
@@ -48,7 +48,7 @@ func TestLine1(t *testing.T) {
 			t.Errorf("line 1 missing %q:\n%s", want, got)
 		}
 	}
-	if strings.Contains(got, "OPS-412") {
+	if strings.Contains(got, "ABC-412") {
 		t.Errorf("strip must lead with topics, not keys: %s", got)
 	}
 }
@@ -72,7 +72,7 @@ func TestLine2SessionPR(t *testing.T) {
 			t.Fatalf("git %v: %v %s", args, err, out)
 		}
 	}
-	run("init", "-q", "-b", "ops-398-rate-limit")
+	run("init", "-q", "-b", "abc-398-rate-limit")
 	run("remote", "add", "origin", "git@github.example:acme/api-gateway.git")
 	got := Line2(testView(t), dir, Plain)
 	if !strings.Contains(got, "this session ▸") || !strings.Contains(got, "api-gateway#1042 ✗") {

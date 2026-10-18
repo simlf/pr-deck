@@ -1,6 +1,6 @@
 // Package ticket finds Jira keys on PRs and turns ticket summaries into the
 // plain-language topics pr-deck leads with. Keys are secondary: people
-// remember "Bigger uploads", not "OPS-628".
+// remember "Bigger uploads", not "ABC-123".
 package ticket
 
 import (
@@ -13,7 +13,7 @@ var keyRe = regexp.MustCompile(`(?i)\b([A-Z][A-Z0-9]{1,9})-(\d{1,6})\b`)
 
 // Extract returns the first ticket key found in branch, then title, then
 // body. When projects is non-empty only those project keys count. Keys are
-// upper-cased: branch "ops-412-body-size" yields "OPS-412".
+// upper-cased: branch "abc-412-body-size" yields "ABC-412".
 func Extract(projects []string, branch, title, body string) string {
 	allowed := map[string]bool{}
 	for _, p := range projects {
@@ -77,7 +77,7 @@ func Short(summary, alias string, maxRunes int) string {
 }
 
 // StripKey removes the ticket key and the separators around it from a PR
-// title: "OPS-412 ingress: body size 25m" → "ingress: body size 25m".
+// title: "ABC-412 ingress: body size 25m" → "ingress: body size 25m".
 func StripKey(title, key string) string {
 	t := strings.TrimSpace(title)
 	if key != "" {

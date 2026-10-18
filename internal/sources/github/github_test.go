@@ -14,8 +14,8 @@ import (
 )
 
 const searchResp = `{"data":{"search":{"pageInfo":{"hasNextPage":false,"endCursor":""},"nodes":[
- {"id":"PR_1","number":319,"title":"OPS-412 ingress: body size 25m (prod)","url":"https://github.example/acme/infra-config/pull/319",
-  "body":"Purpose: Same limit for prod.\nMerge-after: #318","headRefName":"ops-412-body-size-prod","isDraft":false,"state":"OPEN",
+ {"id":"PR_1","number":319,"title":"ABC-412 ingress: body size 25m (prod)","url":"https://github.example/acme/infra-config/pull/319",
+  "body":"Purpose: Same limit for prod.\nMerge-after: #318","headRefName":"abc-412-body-size-prod","isDraft":false,"state":"OPEN",
   "mergeable":"MERGEABLE","reviewDecision":"APPROVED","createdAt":"2026-10-15T14:05:00Z","updatedAt":"2026-10-16T09:00:00Z",
   "author":{"login":"me"},"repository":{"nameWithOwner":"acme/infra-config"},
   "labels":{"nodes":[{"name":"prod-change"}]},
@@ -78,7 +78,7 @@ func TestSearchMapsFields(t *testing.T) {
 		t.Fatalf("want 1 PR (empty node skipped), got %d", len(prs))
 	}
 	p := prs[0]
-	if p.Key() != "acme/infra-config#319" || p.Branch != "ops-412-body-size-prod" || !p.HasLabel("prod-change") {
+	if p.Key() != "acme/infra-config#319" || p.Branch != "abc-412-body-size-prod" || !p.HasLabel("prod-change") {
 		t.Fatalf("mapping: %+v", p)
 	}
 	if p.CI != model.CIFail || len(p.FailedRuns) != 1 || p.FailedRuns[0] != 77 {
