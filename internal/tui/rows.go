@@ -229,7 +229,10 @@ func (m *Model) stateLabel(p model.PR) string {
 		}
 		return "waits"
 	case deck.StScheduled:
-		return "◷ " + shortWhen(v.Now, v.State.Schedules[p.Key()].At)
+		if sch, ok := v.State.Schedules[p.Key()]; ok {
+			return "◷ " + shortWhen(v.Now, sch.At)
+		}
+		return "◷"
 	case deck.StFail:
 		return "CI ✗"
 	case deck.StRunning:

@@ -90,6 +90,7 @@ func Running(cacheDir string) bool {
 		return false
 	}
 	if ok {
+		_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
 		f.Close()
 		return false
 	}

@@ -182,8 +182,10 @@ func (v View) Next(p model.PR) string {
 	case StMerged:
 		return "merged"
 	case StScheduled:
-		sch := v.State.Schedules[p.Key()]
-		return "◷ merges " + window.When(v.Now, sch.At) + " (re-checks first) · m cancel"
+		if sch, ok := v.State.Schedules[p.Key()]; ok {
+			return "◷ merges " + window.When(v.Now, sch.At) + " (re-checks first) · m cancel"
+		}
+		return "◷ scheduled · m cancel"
 	case StWaiting:
 		if sib, ok := v.Sibling(p); ok {
 			return "waits on " + orderMark(sib) + " " + sib.Ref()

@@ -115,6 +115,7 @@ func (m *Model) refresh() tea.Cmd {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
 		s, err := m.dk.Refresh(ctx)
+		_, _ = m.dk.Rules(ctx) // warms the holiday cache off the UI thread
 		return snapMsg{s, err}
 	}
 }
@@ -133,7 +134,7 @@ func (m *Model) recompute() {
 	if st, err := m.dk.Store.Load(); err == nil {
 		m.view.State = st
 	}
-	rules, err := m.dk.Rules(context.Background())
+	rules, err := m.dk.RulesCached() // never blocks the UI on the network
 	if err != nil {
 		m.setErr(err)
 	}

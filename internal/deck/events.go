@@ -68,7 +68,20 @@ func (v View) Notices() []Event {
 		}
 	}
 	if w.Enabled && w.Open {
-		out = append(out, Event{ID: "window-open:" + w.Until.Format(time.RFC3339), Title: "◉ prod merge window open", Body: "until " + w.Until.Format("15:04")})
+		// Only worth a toast when a critical PR is ready or scheduled.
+		var waiting []string
+		for _, p := range v.Snap.PRs {
+			if p.Sibling || p.Merged() || !v.Critical(p) {
+				continue
+			}
+			if s := v.StateOf(p); s == StReady || s == StScheduled {
+				waiting = append(waiting, p.Ref())
+			}
+		}
+		if len(waiting) > 0 {
+			out = append(out, Event{ID: "window-open:" + w.Until.Format(time.RFC3339), Title: "◉ prod merge window open",
+				Body: "until " + w.Until.Format("15:04") + " · " + strings.Join(waiting, ", ")})
+		}
 	}
 	if at := v.Cfg.Herdr.RecallAt; at != "" {
 		if hm, err := time.Parse("15:04", at); err == nil {

@@ -472,3 +472,14 @@ func TestTopicNeverJustAKeyWithoutJira(t *testing.T) {
 		t.Fatalf("Jira summary wins = %q", got)
 	}
 }
+
+func TestWindowToastOnlyWhenSomethingWaits(t *testing.T) {
+	gh := scenario()
+	d := newDeck(t, gh, tue1102)
+	v := view(t, d, tue1102) // prod waits on eng: nothing critical can merge
+	for _, e := range v.Notices() {
+		if strings.HasPrefix(e.ID, "window-open:") {
+			t.Fatalf("no critical PR is ready, but got %+v", e)
+		}
+	}
+}
