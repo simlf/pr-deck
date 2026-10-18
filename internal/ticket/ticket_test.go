@@ -34,3 +34,16 @@ func TestShort(t *testing.T) {
 		t.Fatalf("Short = %q", got)
 	}
 }
+
+func TestStripKey(t *testing.T) {
+	for in, want := range map[string]string{
+		"OPS-412 ingress: body size 25m (eng)": "ingress: body size 25m (eng)",
+		"[OPS-412] ingress":                    "ingress",
+		"ingress fix (ops-412)":                "ingress fix",
+		"OPS-412":                              "",
+	} {
+		if got := StripKey(in, "OPS-412"); got != want {
+			t.Errorf("StripKey(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

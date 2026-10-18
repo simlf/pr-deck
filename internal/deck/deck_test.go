@@ -408,3 +408,67 @@ func TestTokensAndAgentPRs(t *testing.T) {
 		t.Fatalf("When = %q", w)
 	}
 }
+
+type countingJira struct {
+	fakeJira
+	calls int
+}
+
+func (c *countingJira) Get(ctx context.Context, k string) (jira.Ticket, error) {
+	c.calls++
+	return c.fakeJira.Get(ctx, k)
+}
+
+type countingSlack struct {
+	fakeSlack
+	calls int
+}
+
+func (c *countingSlack) FirstPost(ctx context.Context, ch, url string) (*time.Time, error) {
+	c.calls++
+	return c.fakeSlack.FirstPost(ctx, ch, url)
+}
+
+func TestSlowSourcesAreCached(t *testing.T) {
+	gh := scenario()
+	now := tue1102
+	d := newDeck(t, gh, now)
+	cj := &countingJira{fakeJira: d.Jira.(fakeJira)}
+	cs := &countingSlack{fakeSlack: d.Slack.(fakeSlack)}
+	d.Jira, d.Slack = cj, cs
+	d.Now = func() time.Time { return now }
+	d.Refresh(context.Background())
+	j1, s1 := cj.calls, cs.calls
+	if j1 != 2 || s1 != 2 { // OPS-412, OPS-415; runbooks#88 and terraform#203
+		t.Fatalf("first refresh: jira=%d slack=%d", j1, s1)
+	}
+	now = now.Add(time.Minute)
+	d.Refresh(context.Background())
+	if cj.calls != j1 || cs.calls != s1 {
+		t.Fatalf("a refresh one minute later must reuse cached Jira/Slack answers: jira=%d slack=%d", cj.calls, cs.calls)
+	}
+	now = now.Add(20 * time.Minute)
+	d.Refresh(context.Background())
+	if cj.calls != j1+2 {
+		t.Fatalf("tickets re-fetched after the TTL: %d", cj.calls)
+	}
+	if cs.calls != s1+1 { // only the not-posted PR is re-checked; a found post never changes
+		t.Fatalf("slack calls after TTL = %d, want %d", cs.calls, s1+1)
+	}
+}
+
+func TestTopicNeverJustAKeyWithoutJira(t *testing.T) {
+	v := View{Cfg: config.Default()}
+	p := model.PR{Ticket: "OPS-412", Title: "OPS-412 ingress: body size 25m (prod)"}
+	if got := v.Topic(p); got != "ingress: body size 25m (prod)" {
+		t.Fatalf("title fallback = %q", got)
+	}
+	p.Purpose = "Same 25 MB upload limit for prod."
+	if got := v.Topic(p); got != p.Purpose {
+		t.Fatalf("purpose fallback = %q", got)
+	}
+	p.Topic = "Allow bigger uploads"
+	if got := v.Topic(p); got != "Allow bigger uploads" {
+		t.Fatalf("Jira summary wins = %q", got)
+	}
+}

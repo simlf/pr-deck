@@ -10,6 +10,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"prdeck/internal/daemon"
 	"prdeck/internal/deck"
 	"prdeck/internal/desktop"
 	"prdeck/internal/model"
@@ -587,7 +588,11 @@ func (m *Model) execute(pl deck.Plan) tea.Cmd {
 			return nil
 		}
 		m.recompute()
-		m.say("◷ " + t.Ref() + " scheduled for " + window.When(m.view.Now, pl.At) + " (re-checks first; the daemon runs it)")
+		note := " (re-checks first; the daemon runs it)"
+		if !daemon.Running(m.dk.Cfg.Deck.CacheDir) {
+			note = " · no daemon running: start it with prd daemon --detach"
+		}
+		m.say("◷ " + t.Ref() + " scheduled for " + window.When(m.view.Now, pl.At) + note)
 		return nil
 	case deck.PlanCancel:
 		_ = m.dk.Cancel(t)

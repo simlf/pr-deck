@@ -190,16 +190,22 @@ func firstLine(s string) string {
 // AgentPRs returns the PRs an agent created, matched by its session id
 // (from herdr) or its working directory (from the transcript).
 func (v View) AgentPRs(sessionID, cwd string) []model.PR {
-	var out []model.PR
+	var bySession, byCwd []model.PR
 	for _, p := range v.Snap.PRs {
-		if p.Why == nil || p.Sibling {
+		if p.Why == nil || p.Sibling || p.Merged() && p.Pair == nil {
 			continue
 		}
-		if (sessionID != "" && p.Why.SessionID == sessionID) || (sessionID == "" && cwd != "" && p.Why.Cwd == cwd) {
-			out = append(out, p)
+		if sessionID != "" && p.Why.SessionID == sessionID {
+			bySession = append(bySession, p)
+		}
+		if cwd != "" && p.Why.Cwd == cwd {
+			byCwd = append(byCwd, p)
 		}
 	}
-	return out
+	if len(bySession) > 0 {
+		return bySession
+	}
+	return byCwd
 }
 
 // Tokens renders a compact PR list for a herdr sidebar token:

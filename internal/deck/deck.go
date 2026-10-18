@@ -98,7 +98,7 @@ func (d *Deck) Refresh(ctx context.Context) (model.Snapshot, error) {
 		sib.Sibling = true
 		open = append(open, sib)
 	}
-	snap.Errors = append(snap.Errors, d.enrichTickets(ctx, open, prev)...)
+	snap.Errors = append(snap.Errors, d.enrichTickets(ctx, open, prev, now)...)
 	snap.Errors = append(snap.Errors, d.enrichWhy(open)...)
 	snap.Errors = append(snap.Errors, d.enrichPosted(ctx, open, prev, now)...)
 	pairs.Link(open, d.Cfg.Envs, st.Pairs)
@@ -116,14 +116,23 @@ func (d *Deck) enrichBasic(p *model.PR) {
 	p.Purpose = trailer.Purpose(p.Body)
 }
 
-func (d *Deck) enrichTickets(ctx context.Context, prs []model.PR, prev model.Snapshot) []string {
+// Re-ask Jira and Slack at most this often; GitHub is asked every refresh.
+const (
+	ticketTTL = 15 * time.Minute
+	postedTTL = 10 * time.Minute
+)
+
+func (d *Deck) enrichTickets(ctx context.Context, prs []model.PR, prev model.Snapshot, now time.Time) []string {
 	known := map[string]model.PR{}
 	for _, p := range prev.PRs {
 		if p.Ticket != "" && p.Topic != "" {
 			known[p.Ticket] = p
 		}
 	}
-	type info struct{ topic, status, url string }
+	type info struct {
+		topic, status, url string
+		fetched            time.Time
+	}
 	got := map[string]info{}
 	var errs []string
 	for _, p := range prs {
@@ -137,21 +146,26 @@ func (d *Deck) enrichTickets(ctx context.Context, prs []model.PR, prev model.Sna
 			got[p.Ticket] = info{}
 			continue
 		}
+		k, haveOld := known[p.Ticket]
+		if haveOld && now.Sub(k.TicketFetched) < ticketTTL {
+			got[p.Ticket] = info{k.Topic, k.TicketStatus, k.TicketURL, k.TicketFetched}
+			continue
+		}
 		t, err := d.Jira.Get(ctx, p.Ticket)
 		if err != nil {
 			errs = append(errs, "jira: "+err.Error())
-			if k, ok := known[p.Ticket]; ok { // keep the last good topic
-				got[p.Ticket] = info{k.Topic, k.TicketStatus, k.TicketURL}
+			if haveOld { // keep the last good topic
+				got[p.Ticket] = info{k.Topic, k.TicketStatus, k.TicketURL, k.TicketFetched}
 			} else {
 				got[p.Ticket] = info{url: d.Jira.BrowseURL(p.Ticket)}
 			}
 			continue
 		}
-		got[p.Ticket] = info{t.Summary, t.Status, d.Jira.BrowseURL(p.Ticket)}
+		got[p.Ticket] = info{t.Summary, t.Status, d.Jira.BrowseURL(p.Ticket), now}
 	}
 	for i := range prs {
 		if in, ok := got[prs[i].Ticket]; ok {
-			prs[i].Topic, prs[i].TicketStatus, prs[i].TicketURL = in.topic, in.status, in.url
+			prs[i].Topic, prs[i].TicketStatus, prs[i].TicketURL, prs[i].TicketFetched = in.topic, in.status, in.url, in.fetched
 		}
 	}
 	return dedupe(errs)
@@ -187,16 +201,20 @@ func (d *Deck) enrichPosted(ctx context.Context, prs []model.PR, prev model.Snap
 		if p.Merged() || p.Sibling || p.ReviewDecision == model.ReviewApproved || (p.Draft && d.Cfg.Review.SkipDrafts) {
 			continue
 		}
-		if old, ok := prev.Find(p.Key()); ok && old.PostedKnown && old.Posted != nil {
-			p.Posted, p.PostedKnown = old.Posted, true // first post never changes
-			continue
+		if old, ok := prev.Find(p.Key()); ok && old.PostedKnown {
+			if old.Posted != nil || now.Sub(old.PostedChecked) < postedTTL {
+				// The first post never changes; "not posted" is re-checked
+				// every postedTTL.
+				p.Posted, p.PostedKnown, p.PostedChecked = old.Posted, true, old.PostedChecked
+				continue
+			}
 		}
 		at, err := d.Slack.FirstPost(ctx, d.Cfg.Review.Channel, p.URL)
 		if err != nil {
 			errs = append(errs, "slack: "+err.Error())
 			continue
 		}
-		p.Posted, p.PostedKnown = at, true
+		p.Posted, p.PostedKnown, p.PostedChecked = at, true, now
 	}
 	return dedupe(errs)
 }

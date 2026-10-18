@@ -62,9 +62,9 @@ prd daemon --detach    # refresh, scheduled merges, reminders, herdr tokens (sin
 ### tmux (fallback)
 
 ```tmux
-set -g status 2
+set -g status 3                     # keep tmux's own line, add two pr-deck lines
+set -g status-interval 15
 set -g status-format[1] '#(prd strip --line 1 --format tmux)'
-set -ag status-format[1] ''
 set -g status-format[2] '#(prd strip --line 2 --format tmux --cwd "#{pane_current_path}")'
 bind-key p display-popup -E -w 90% -h 85% prd board
 bind-key R display-popup -E -w 95% -h 90% prd recall

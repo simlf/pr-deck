@@ -23,9 +23,14 @@ type Index struct {
 	Whys  map[string]model.Why `json:"whys"`
 }
 
+// fileMark remembers how far a transcript was read and the context needed
+// to resume there, so a growing session file is only read once.
 type fileMark struct {
-	Size    int64     `json:"size"`
-	ModTime time.Time `json:"mod_time"`
+	Size       int64     `json:"size"`
+	ModTime    time.Time `json:"mod_time"`
+	Offset     int64     `json:"offset"`
+	LastPrompt string    `json:"last_prompt,omitempty"`
+	Creates    []string  `json:"creates,omitempty"`
 }
 
 // Load reads a persisted index (missing file → empty).
@@ -74,13 +79,18 @@ func (ix *Index) Scan(dir, webHost string) error {
 		if err != nil {
 			continue
 		}
-		mark := fileMark{st.Size(), st.ModTime()}
-		if old, ok := ix.Files[f]; ok && old == mark {
+		old, seen := ix.Files[f]
+		if seen && old.Size == st.Size() && old.ModTime.Equal(st.ModTime()) {
 			continue
 		}
-		if err := ix.scanFile(f, re); err != nil {
+		if !seen || st.Size() < old.Offset {
+			old = fileMark{} // new or truncated/rewritten: start over
+		}
+		mark, err := ix.scanFile(f, re, old)
+		if err != nil {
 			continue
 		}
+		mark.Size, mark.ModTime = st.Size(), st.ModTime()
 		ix.Files[f] = mark
 	}
 	return nil
@@ -121,19 +131,30 @@ type block struct {
 	Content   json.RawMessage `json:"content"`
 }
 
-func (ix *Index) scanFile(path string, re *regexp.Regexp) error {
+func (ix *Index) scanFile(path string, re *regexp.Regexp, from fileMark) (fileMark, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return err
+		return from, err
 	}
 	defer f.Close()
-	sc := bufio.NewScanner(f)
-	sc.Buffer(make([]byte, 256*1024), 32*1024*1024)
-	var lastPrompt string
+	if _, err := f.Seek(from.Offset, 0); err != nil {
+		return from, err
+	}
+	rd := bufio.NewReaderSize(f, 256*1024)
+	lastPrompt := from.LastPrompt
 	creates := map[string]bool{} // tool_use ids that ran a PR create
-	for sc.Scan() {
+	for _, id := range from.Creates {
+		creates[id] = true
+	}
+	offset := from.Offset
+	for {
+		raw, err := rd.ReadBytes('\n')
+		if err != nil {
+			break // EOF or a partial last line: resume there next time
+		}
+		offset += int64(len(raw))
 		var ln line
-		if json.Unmarshal(sc.Bytes(), &ln) != nil || ln.IsMeta {
+		if json.Unmarshal(raw, &ln) != nil || ln.IsMeta {
 			continue
 		}
 		var text string
@@ -150,6 +171,7 @@ func (ix *Index) scanFile(path string, re *regexp.Regexp) error {
 				if b.Type != "tool_result" || !creates[b.ToolUseID] {
 					continue
 				}
+				delete(creates, b.ToolUseID)
 				for _, m := range re.FindAllStringSubmatch(resultText(b.Content), -1) {
 					n, _ := strconv.Atoi(m[3])
 					key := model.Key(m[1]+"/"+m[2], n)
@@ -167,7 +189,11 @@ func (ix *Index) scanFile(path string, re *regexp.Regexp) error {
 			}
 		}
 	}
-	return sc.Err()
+	mark := fileMark{Offset: offset, LastPrompt: lastPrompt}
+	for id := range creates {
+		mark.Creates = append(mark.Creates, id)
+	}
+	return mark, nil
 }
 
 // promptText returns a real human prompt, skipping tool results and

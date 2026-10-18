@@ -83,6 +83,19 @@ func Lock(cacheDir string) (*os.File, bool, error) {
 	return f, true, nil
 }
 
+// Running reports whether a daemon currently holds the lock in cacheDir.
+func Running(cacheDir string) bool {
+	f, ok, err := Lock(cacheDir)
+	if err != nil {
+		return false
+	}
+	if ok {
+		f.Close()
+		return false
+	}
+	return true
+}
+
 // Run ticks every refresh interval, or sooner after a poke (at most every
 // 10 seconds), until ctx ends.
 func (d *Daemon) Run(ctx context.Context) error {

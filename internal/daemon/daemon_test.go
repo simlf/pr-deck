@@ -83,7 +83,7 @@ func TestTickPublishesAndNotifiesOnce(t *testing.T) {
 		`{"type":"user","message":{"content":"do the eng then prod pair"},"cwd":"/w/infra","sessionId":"","timestamp":"2026-10-15T14:00:00Z"}`,
 		`{"type":"assistant","message":{"content":[{"type":"tool_use","id":"a","input":{"command":"gh pr create"}}]}}`,
 		`{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"a","content":"https://github.example/acme/infra-config/pull/319"}]},"cwd":"/w/infra"}`,
-	}, "\n")), 0o600)
+	}, "\n")+"\n"), 0o600)
 	cfg.Why.TranscriptsDir = tr
 	gh := &fakeGH{prs: map[string]model.PR{
 		"acme/infra-config#318": {Repo: "acme/infra-config", Number: 318, State: "MERGED", Branch: "x-eng"},
@@ -134,7 +134,13 @@ func TestLockIsExclusiveAndPoke(t *testing.T) {
 	if _, ok2, _ := Lock(dir); ok2 {
 		t.Fatal("second daemon must not get the lock")
 	}
+	if !Running(dir) {
+		t.Fatal("Running should see the held lock")
+	}
 	f.Close()
+	if Running(dir) {
+		t.Fatal("no daemon after close")
+	}
 	if _, ok3, _ := Lock(dir); !ok3 {
 		t.Fatal("lock should be free after close")
 	}

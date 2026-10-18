@@ -135,18 +135,23 @@ func (v View) Flagged(p model.PR) bool {
 	return v.Touched(p).Before(midnight)
 }
 
-// Topic is the plain-language topic: the Jira summary, else the Purpose
-// line, else the PR title.
+// Topic is the plain-language topic, never just a key: the Jira summary,
+// else the PR's Purpose: line, else its title without the ticket key. The
+// bare key is the very last resort.
 func (v View) Topic(p model.PR) string {
-	switch {
-	case p.Topic != "":
+	if p.Topic != "" {
 		return p.Topic
-	case p.Ticket == "" && p.Purpose != "":
-		return p.Purpose
-	case p.Ticket == "":
-		return p.Title
 	}
-	return p.Ticket // Jira unreachable and nothing cached
+	if p.Purpose != "" {
+		return p.Purpose
+	}
+	if t := ticket.StripKey(p.Title, p.Ticket); t != "" {
+		return t
+	}
+	if p.Ticket != "" {
+		return p.Ticket
+	}
+	return p.Ref()
 }
 
 // TopicShort is the compact topic: the user's alias (t key) for the ticket

@@ -60,6 +60,10 @@ type PR struct {
 	Pair         *PairRef   `json:"pair,omitempty"`
 	Posted       *time.Time `json:"posted,omitempty"`
 	PostedKnown  bool       `json:"posted_known"`
+	// When the slow sources were last asked, so refreshes stay within
+	// Jira and Slack rate limits.
+	TicketFetched time.Time `json:"ticket_fetched,omitempty"`
+	PostedChecked time.Time `json:"posted_checked,omitempty"`
 	// Sibling marks a PR fetched only because an open PR pairs with it.
 	Sibling bool `json:"sibling,omitempty"`
 }
