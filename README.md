@@ -149,3 +149,15 @@ go test ./...
 ```
 
 Tests use fixtures and fakes (httptest servers, a fake herdr socket) and never call GitHub, Jira or Slack.
+
+## CI cost
+
+The `test` workflow runs only on pull requests (and manual `workflow_dispatch`); it does not re-run on push to `main`, since every change already passed it on its PR.
+
+Any workflow that runs on push to `main` (such as a future deploy) debounces bursts of merges: it sets `concurrency: { group: ${{ github.workflow }}-${{ github.ref }}, cancel-in-progress: true }` and its first job is a no-op `debounce` gate with `environment: main-debounce` that every other job `needs:`. The environment's wait timer holds the run without using runner minutes, and each newer merge cancels the waiting run, so a burst produces one run for the last merge. The `main-debounce` environment must have a 10-minute wait timer, set once with:
+
+```sh
+gh api -X PUT repos/<owner>/<repo>/environments/main-debounce -F wait_timer=10
+```
+
+Renovate opens one monthly PR grouping all non-major updates, which auto-merges once required CI passes; major updates stay manual.

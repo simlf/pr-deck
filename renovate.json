@@ -6,14 +6,10 @@
   "postUpdateOptions": ["gomodTidy"],
   "packageRules": [
     {
-      "description": "One grouped PR for all non-major updates",
+      "description": "One grouped PR for all non-major updates, auto-merged once required CI passes; majors stay manual",
       "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
       "groupName": "all non-major dependencies",
-      "groupSlug": "all-non-major"
-    },
-    {
-      "description": "Auto-merge patch updates once required CI passes",
-      "matchUpdateTypes": ["patch"],
+      "groupSlug": "all-non-major",
       "automerge": true,
       "automergeType": "pr"
     }
