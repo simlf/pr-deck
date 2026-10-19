@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"prdeck/internal/config"
-	"prdeck/internal/deck"
-	"prdeck/internal/herdr"
-	"prdeck/internal/model"
-	"prdeck/internal/state"
+	"github.com/simlf/pr-deck/internal/config"
+	"github.com/simlf/pr-deck/internal/deck"
+	"github.com/simlf/pr-deck/internal/herdr"
+	"github.com/simlf/pr-deck/internal/model"
+	"github.com/simlf/pr-deck/internal/state"
 )
 
 type fakeGH struct{ prs map[string]model.PR }

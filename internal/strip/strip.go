@@ -10,8 +10,8 @@ import (
 	"sort"
 	"strings"
 
-	"prdeck/internal/deck"
-	"prdeck/internal/model"
+	"github.com/simlf/pr-deck/internal/deck"
+	"github.com/simlf/pr-deck/internal/model"
 )
 
 // Format of the output.

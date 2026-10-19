@@ -20,13 +20,13 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"prdeck/internal/config"
-	"prdeck/internal/daemon"
-	"prdeck/internal/deck"
-	"prdeck/internal/herdr"
-	"prdeck/internal/pairs"
-	"prdeck/internal/strip"
-	"prdeck/internal/tui"
+	"github.com/simlf/pr-deck/internal/config"
+	"github.com/simlf/pr-deck/internal/daemon"
+	"github.com/simlf/pr-deck/internal/deck"
+	"github.com/simlf/pr-deck/internal/herdr"
+	"github.com/simlf/pr-deck/internal/pairs"
+	"github.com/simlf/pr-deck/internal/strip"
+	"github.com/simlf/pr-deck/internal/tui"
 )
 
 var version = "dev"

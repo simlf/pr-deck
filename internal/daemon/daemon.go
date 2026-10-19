@@ -14,10 +14,10 @@ import (
 	"syscall"
 	"time"
 
-	"prdeck/internal/deck"
-	"prdeck/internal/herdr"
-	"prdeck/internal/model"
-	"prdeck/internal/state"
+	"github.com/simlf/pr-deck/internal/deck"
+	"github.com/simlf/pr-deck/internal/herdr"
+	"github.com/simlf/pr-deck/internal/model"
+	"github.com/simlf/pr-deck/internal/state"
 )
 
 // Host is the herdr surface the daemon publishes to.

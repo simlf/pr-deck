@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	"prdeck/internal/model"
+	"github.com/simlf/pr-deck/internal/model"
 )
 
 const searchResp = `{"data":{"search":{"pageInfo":{"hasNextPage":false,"endCursor":""},"nodes":[

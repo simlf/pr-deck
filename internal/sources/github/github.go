@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"prdeck/internal/model"
+	"github.com/simlf/pr-deck/internal/model"
 )
 
 // API is what the rest of pr-deck needs from GitHub. Tests use fakes.

@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"prdeck/internal/config"
-	"prdeck/internal/model"
-	"prdeck/internal/sources/jira"
-	"prdeck/internal/state"
-	"prdeck/internal/window"
+	"github.com/simlf/pr-deck/internal/config"
+	"github.com/simlf/pr-deck/internal/model"
+	"github.com/simlf/pr-deck/internal/sources/jira"
+	"github.com/simlf/pr-deck/internal/state"
+	"github.com/simlf/pr-deck/internal/window"
 )
 
 // ---- fakes ----

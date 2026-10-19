@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"prdeck/internal/config"
-	"prdeck/internal/deck"
-	"prdeck/internal/model"
-	"prdeck/internal/pairs"
-	"prdeck/internal/state"
-	"prdeck/internal/window"
+	"github.com/simlf/pr-deck/internal/config"
+	"github.com/simlf/pr-deck/internal/deck"
+	"github.com/simlf/pr-deck/internal/model"
+	"github.com/simlf/pr-deck/internal/pairs"
+	"github.com/simlf/pr-deck/internal/state"
+	"github.com/simlf/pr-deck/internal/window"
 )
 
 func testView(t *testing.T) deck.View {

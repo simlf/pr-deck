@@ -8,9 +8,9 @@ import (
 
 	"github.com/mattn/go-runewidth"
 
-	"prdeck/internal/deck"
-	"prdeck/internal/model"
-	"prdeck/internal/review"
+	"github.com/simlf/pr-deck/internal/deck"
+	"github.com/simlf/pr-deck/internal/model"
+	"github.com/simlf/pr-deck/internal/review"
 )
 
 // line is one rendered body line. key/group make it a mouse target.

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"prdeck/internal/config"
+	"github.com/simlf/pr-deck/internal/config"
 )
 
 // Rules is a compiled merge-window configuration.

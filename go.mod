@@ -1,4 +1,4 @@
-module prdeck
+module github.com/simlf/pr-deck
 
 go 1.24.0
 

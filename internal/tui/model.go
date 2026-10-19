@@ -10,12 +10,12 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"prdeck/internal/daemon"
-	"prdeck/internal/deck"
-	"prdeck/internal/desktop"
-	"prdeck/internal/model"
-	"prdeck/internal/pairs"
-	"prdeck/internal/window"
+	"github.com/simlf/pr-deck/internal/daemon"
+	"github.com/simlf/pr-deck/internal/deck"
+	"github.com/simlf/pr-deck/internal/desktop"
+	"github.com/simlf/pr-deck/internal/model"
+	"github.com/simlf/pr-deck/internal/pairs"
+	"github.com/simlf/pr-deck/internal/window"
 )
 
 // Layouts.

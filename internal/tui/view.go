@@ -6,9 +6,9 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"prdeck/internal/deck"
-	"prdeck/internal/model"
-	"prdeck/internal/review"
+	"github.com/simlf/pr-deck/internal/deck"
+	"github.com/simlf/pr-deck/internal/model"
+	"github.com/simlf/pr-deck/internal/review"
 )
 
 // View implements tea.Model.

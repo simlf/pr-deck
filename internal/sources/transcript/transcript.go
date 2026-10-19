@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"prdeck/internal/model"
+	"github.com/simlf/pr-deck/internal/model"
 )
 
 // Index maps PR keys (owner/repo#N) to their creation context. It is

@@ -3,7 +3,7 @@ package pairs
 import (
 	"testing"
 
-	"prdeck/internal/model"
+	"github.com/simlf/pr-deck/internal/model"
 )
 
 var envs = []string{"eng", "prod"}

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"prdeck/internal/model"
+	"github.com/simlf/pr-deck/internal/model"
 )
 
 // Kind of review state.

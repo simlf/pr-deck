@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"prdeck/internal/config"
+	"github.com/simlf/pr-deck/internal/config"
 )
 
 func rules(t *testing.T) Rules {

@@ -4,12 +4,12 @@ import (
 	"strings"
 	"time"
 
-	"prdeck/internal/config"
-	"prdeck/internal/model"
-	"prdeck/internal/review"
-	"prdeck/internal/state"
-	"prdeck/internal/ticket"
-	"prdeck/internal/window"
+	"github.com/simlf/pr-deck/internal/config"
+	"github.com/simlf/pr-deck/internal/model"
+	"github.com/simlf/pr-deck/internal/review"
+	"github.com/simlf/pr-deck/internal/state"
+	"github.com/simlf/pr-deck/internal/ticket"
+	"github.com/simlf/pr-deck/internal/window"
 )
 
 // PR states pr-deck shows, most blocking first.
