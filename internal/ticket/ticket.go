@@ -28,6 +28,9 @@ func Extract(projects []string, branch, title, body string) string {
 			if len(allowed) == 0 && !looksLikeKey(m[0]) {
 				continue
 			}
+			if strings.Trim(m[2], "0") == "" { // ABC-0000 is the "no ticket" placeholder
+				continue
+			}
 			return proj + "-" + m[2]
 		}
 	}

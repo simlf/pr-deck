@@ -25,6 +25,7 @@ import (
 	"github.com/simlf/pr-deck/internal/deck"
 	"github.com/simlf/pr-deck/internal/herdr"
 	"github.com/simlf/pr-deck/internal/pairs"
+	"github.com/simlf/pr-deck/internal/sources/jira"
 	"github.com/simlf/pr-deck/internal/strip"
 	"github.com/simlf/pr-deck/internal/tui"
 )
@@ -306,17 +307,26 @@ func runDoctor(cfg config.Config, w io.Writer) error {
 	}
 	fmt.Fprintln(w, "config:      ", path)
 	fmt.Fprintln(w, "github:      ", cfg.GitHub.APIURL, "token", yes(config.Secret(cfg.GitHub.TokenEnv, cfg.GitHub.TokenCmd) != ""))
-	if cfg.Jira.BaseURL == "" {
+	d := deck.New(cfg)
+	if jc, ok := d.Jira.(*jira.Client); !ok {
 		fmt.Fprintln(w, "jira:         not configured (topics fall back to Purpose: lines and titles)")
+	} else if jc.Token == "" {
+		fmt.Fprintln(w, "jira:        ", cfg.Jira.BaseURL, "token missing")
 	} else {
-		fmt.Fprintln(w, "jira:        ", cfg.Jira.BaseURL, "token", yes(config.Secret([]string{cfg.Jira.TokenEnv}, cfg.Jira.TokenCmd) != ""))
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		name, err := jc.Me(ctx)
+		cancel()
+		if err != nil {
+			fmt.Fprintln(w, "jira:        ", cfg.Jira.BaseURL, "token rejected:", err)
+		} else {
+			fmt.Fprintln(w, "jira:        ", cfg.Jira.BaseURL, "token ok, logged in as", name)
+		}
 	}
 	if cfg.Review.Channel == "" {
 		fmt.Fprintln(w, "review:       no channel (posted/overdue tracking off)")
 	} else {
 		fmt.Fprintln(w, "review:      ", cfg.Review.Channel, "remind after", cfg.Review.RemindAfter, "slack token", yes(config.Secret([]string{cfg.Review.TokenEnv}, cfg.Review.TokenCmd) != ""))
 	}
-	d := deck.New(cfg)
 	rules, err := d.RulesCached()
 	switch {
 	case err != nil:

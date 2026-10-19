@@ -32,6 +32,25 @@ func TestGet(t *testing.T) {
 	}
 }
 
+func TestMe(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, p, _ := r.BasicAuth(); p != "tok" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.Write([]byte(`{"displayName":"Ada Lovelace"}`))
+	}))
+	defer srv.Close()
+	c := &Client{HTTP: srv.Client(), BaseURL: srv.URL, Email: "me@example.test", Token: "tok"}
+	if name, err := c.Me(context.Background()); err != nil || name != "Ada Lovelace" {
+		t.Fatalf("Me = %q, %v", name, err)
+	}
+	c.Token = "bad"
+	if _, err := c.Me(context.Background()); err == nil || err.Error() != "jira: HTTP 401" {
+		t.Fatalf("bad token err = %v", err)
+	}
+}
+
 func TestGetUnconfigured(t *testing.T) {
 	if _, err := (&Client{}).Get(context.Background(), "ABC-1"); err == nil {
 		t.Fatal("want error without base url")
