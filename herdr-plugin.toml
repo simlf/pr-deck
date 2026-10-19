@@ -5,6 +5,8 @@
 id = "pr-deck"
 name = "pr-deck"
 version = "0.1.0"
+min_herdr_version = "0.9.3"
+platforms = ["macos", "linux"]
 description = "Open PRs grouped by topic, eng → prod merge order, review state and why each PR exists"
 
 [[build]]
