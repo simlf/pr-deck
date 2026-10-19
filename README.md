@@ -20,14 +20,57 @@ It also does a few light actions, all with a confirmation:
 
 ## Install
 
+### Prerequisites
+
+- **Go 1.24 or newer** (`go.mod` declares `go 1.24.0`).
+- **GitHub access.** The simplest setup is the GitHub CLI, logged in with `gh auth login`: pr-deck runs `gh auth token` when neither `GITHUB_TOKEN` nor `GH_TOKEN` is set.
+- **Optional:** a Jira API token (`JIRA_API_TOKEN`) for ticket topics, and a Slack user token with `search:read` (`SLACK_TOKEN`) for review tracking. Without them, pr-deck runs on GitHub alone.
+
+### Get the binary
+
 ```sh
-go install github.com/simlf/pr-deck/cmd/prd@latest   # Go 1.24+ (or `go install ./cmd/prd` from a clone)
-prd doctor                    # shows what is configured; never prints tokens
+go install github.com/simlf/pr-deck/cmd/prd@latest   # or `go install ./cmd/prd` from a clone
 ```
 
-The binary goes to `$(go env GOPATH)/bin` (usually `~/go/bin`); make sure it is on your `PATH`.
+The binary goes to `$(go env GOPATH)/bin` (usually `~/go/bin`). If `prd` is not found afterwards, add that directory to your `PATH`, for example in `~/.zshrc` or `~/.bashrc`:
 
-Copy `docs/config.example.toml` to `~/.config/pr-deck/config.toml` (or set `PRD_CONFIG`) and replace the example values. With no config at all, pr-deck still works with GitHub alone, using `GITHUB_TOKEN`, `GH_TOKEN` or `gh auth token`.
+```sh
+export PATH="$(go env GOPATH)/bin:$PATH"
+```
+
+### First run
+
+```sh
+prd doctor     # shows what is configured and which tokens resolve; never prints tokens
+prd refresh    # fetch once and print a summary
+prd            # open the board
+```
+
+### Configuration
+
+pr-deck reads `$PRD_CONFIG` if set, else `$XDG_CONFIG_HOME/pr-deck/config.toml`, else `~/.config/pr-deck/config.toml`. With no config at all, it still works with GitHub alone. The full annotated example is [`docs/config.example.toml`](docs/config.example.toml); copy it and replace the example values:
+
+```sh
+mkdir -p ~/.config/pr-deck
+cp docs/config.example.toml ~/.config/pr-deck/config.toml
+```
+
+A minimal config only needs the sections you use. Every value below is a placeholder:
+
+```toml
+envs = ["eng", "prod"]
+
+[github]
+query = "org:example-org"          # optional extra search qualifiers
+
+[jira]
+base_url = "https://example.atlassian.net"
+email = "you@example.com"
+projects = ["ABC"]
+
+[review]
+channel = "#team-reviews"          # "" turns review tracking off
+```
 
 Tokens are never read from the config file:
 
@@ -36,6 +79,52 @@ Tokens are never read from the config file:
 | GitHub | `token_env` (default `GITHUB_TOKEN`, `GH_TOKEN`) or `token_cmd` (default `gh auth token`) | repo read, merge, actions rerun |
 | Jira | `jira.token_env` (default `JIRA_API_TOKEN`) or `jira.token_cmd` | read issues |
 | Slack | `review.token_env` (default `SLACK_TOKEN`) or `review.token_cmd` | user token with `search:read`. pr-deck only searches and never posts |
+
+Run `prd doctor` again after editing the config.
+
+### herdr plugin
+
+`herdr-plugin.toml` at the repo root makes the repo a herdr plugin (herdr 0.9.3 or newer, macOS or Linux). Its build step runs `go install ./cmd/prd`, so Go must be installed and `$(go env GOPATH)/bin` must be on the `PATH` herdr sees.
+
+```sh
+herdr plugin install simlf/pr-deck     # from GitHub
+herdr plugin link /path/to/pr-deck     # or from a local clone
+herdr plugin list                      # check that pr-deck is enabled
+```
+
+Then bind the actions to keys in herdr's config with `type = "plugin_action"` (see [herdr](#herdr-primary) below).
+
+### tmux (fallback)
+
+Without herdr, start the daemon yourself (`prd daemon --detach`, for example from your shell profile) and add these lines to `~/.tmux.conf`:
+
+```tmux
+set -g status 3                     # keep tmux's own line, add two pr-deck lines
+set -g status-interval 15
+set -g status-format[1] '#(prd strip --line 1 --format tmux)'
+set -g status-format[2] '#(prd strip --line 2 --format tmux --cwd "#{pane_current_path}")'
+bind-key p display-popup -E -w 90% -h 85% prd board
+bind-key R display-popup -E -w 95% -h 90% prd recall
+```
+
+### Update
+
+```sh
+go install github.com/simlf/pr-deck/cmd/prd@latest
+herdr plugin update pr-deck            # if installed as a herdr plugin from GitHub
+```
+
+Restart the daemon afterwards so it runs the new binary: stop the running `prd daemon` process (for example `pkill -f 'prd daemon'`), then run `prd daemon --detach` again. Under herdr, the plugin's startup hook starts it again on the next herdr start.
+
+### Uninstall
+
+```sh
+herdr plugin uninstall pr-deck         # if installed as a herdr plugin (or `herdr plugin unlink`)
+pkill -f 'prd daemon'                  # stop the background daemon
+rm "$(go env GOPATH)/bin/prd"
+```
+
+Optionally remove pr-deck's files: the config (`~/.config/pr-deck`), the state (`~/.local/state/pr-deck`) and the cache (`~/.cache/pr-deck`), or their `$XDG_*_HOME` equivalents. Remove the tmux lines too if you added them.
 
 ## Hosts
 
@@ -63,14 +152,7 @@ prd daemon --detach    # refresh, scheduled merges, reminders, herdr tokens (sin
 
 ### tmux (fallback)
 
-```tmux
-set -g status 3                     # keep tmux's own line, add two pr-deck lines
-set -g status-interval 15
-set -g status-format[1] '#(prd strip --line 1 --format tmux)'
-set -g status-format[2] '#(prd strip --line 2 --format tmux --cwd "#{pane_current_path}")'
-bind-key p display-popup -E -w 90% -h 85% prd board
-bind-key R display-popup -E -w 95% -h 90% prd recall
-```
+Add the status-line and popup lines from [Install](#tmux-fallback).
 
 `prd strip` reads only the cache, so it is cheap to run from a status line:
 
