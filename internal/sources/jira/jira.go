@@ -43,13 +43,41 @@ func (c *Client) BrowseURL(key string) string {
 
 // Get returns the ticket's summary and status.
 func (c *Client) Get(ctx context.Context, key string) (Ticket, error) {
-	if c.BaseURL == "" {
-		return Ticket{}, fmt.Errorf("jira.base_url not configured")
+	var body struct {
+		Key    string `json:"key"`
+		Fields struct {
+			Summary string `json:"summary"`
+			Status  struct {
+				Name string `json:"name"`
+			} `json:"status"`
+		} `json:"fields"`
 	}
-	u := strings.TrimRight(c.BaseURL, "/") + "/rest/api/2/issue/" + url.PathEscape(key) + "?fields=summary,status"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err := c.get(ctx, "/rest/api/2/issue/"+url.PathEscape(key)+"?fields=summary,status", &body); err != nil {
+		return Ticket{}, fmt.Errorf("jira %s: %w", key, err)
+	}
+	return Ticket{Key: key, Summary: strings.TrimSpace(body.Fields.Summary), Status: body.Fields.Status.Name}, nil
+}
+
+// Me returns the display name the credentials log in as. Jira Cloud answers
+// a rejected token with 404 on issues (it treats the call as anonymous), so
+// this is the check that tells a bad token from a missing ticket.
+func (c *Client) Me(ctx context.Context) (string, error) {
+	var body struct {
+		DisplayName string `json:"displayName"`
+	}
+	if err := c.get(ctx, "/rest/api/2/myself", &body); err != nil {
+		return "", fmt.Errorf("jira: %w", err)
+	}
+	return body.DisplayName, nil
+}
+
+func (c *Client) get(ctx context.Context, path string, out any) error {
+	if c.BaseURL == "" {
+		return fmt.Errorf("jira.base_url not configured")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(c.BaseURL, "/")+path, nil)
 	if err != nil {
-		return Ticket{}, err
+		return err
 	}
 	switch {
 	case c.Email != "" && c.Token != "":
@@ -60,23 +88,11 @@ func (c *Client) Get(ctx context.Context, key string) (Ticket, error) {
 	req.Header.Set("Accept", "application/json")
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
-		return Ticket{}, err
+		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
-		return Ticket{}, fmt.Errorf("jira %s: HTTP %d", key, resp.StatusCode)
+		return fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
-	var body struct {
-		Key    string `json:"key"`
-		Fields struct {
-			Summary string `json:"summary"`
-			Status  struct {
-				Name string `json:"name"`
-			} `json:"status"`
-		} `json:"fields"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		return Ticket{}, err
-	}
-	return Ticket{Key: key, Summary: strings.TrimSpace(body.Fields.Summary), Status: body.Fields.Status.Name}, nil
+	return json.NewDecoder(resp.Body).Decode(out)
 }

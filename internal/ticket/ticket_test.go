@@ -21,6 +21,9 @@ func TestExtractProjects(t *testing.T) {
 	if got := Extract([]string{"abc"}, "feat-12-thing", "ABC-7 x", ""); got != "ABC-7" {
 		t.Fatalf("allow-list should skip FEAT, got %q", got)
 	}
+	if got := Extract([]string{"abc"}, "feat/abc-0000-tidy", "fix(abc-0000): tidy", "Refs ABC-12"); got != "ABC-12" {
+		t.Fatalf("ABC-0000 placeholder should be skipped, got %q", got)
+	}
 }
 
 func TestShort(t *testing.T) {
