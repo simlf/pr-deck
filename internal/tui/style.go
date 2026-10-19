@@ -6,7 +6,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
 
-	"prdeck/internal/deck"
+	"github.com/simlf/pr-deck/internal/deck"
 )
 
 // Basic ANSI colors so pr-deck follows the user's terminal theme.

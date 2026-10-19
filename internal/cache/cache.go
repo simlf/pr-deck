@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"prdeck/internal/model"
+	"github.com/simlf/pr-deck/internal/model"
 )
 
 // SnapshotPath is the snapshot file inside dir.

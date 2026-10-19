@@ -12,8 +12,8 @@ import (
 	"sort"
 	"strings"
 
-	"prdeck/internal/model"
-	"prdeck/internal/trailer"
+	"github.com/simlf/pr-deck/internal/model"
+	"github.com/simlf/pr-deck/internal/trailer"
 )
 
 // DetectEnv finds which configured env a PR targets, from a label

@@ -10,11 +10,11 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"prdeck/internal/cache"
-	"prdeck/internal/config"
-	"prdeck/internal/deck"
-	"prdeck/internal/model"
-	"prdeck/internal/state"
+	"github.com/simlf/pr-deck/internal/cache"
+	"github.com/simlf/pr-deck/internal/config"
+	"github.com/simlf/pr-deck/internal/deck"
+	"github.com/simlf/pr-deck/internal/model"
+	"github.com/simlf/pr-deck/internal/state"
 )
 
 type fakeGH struct {

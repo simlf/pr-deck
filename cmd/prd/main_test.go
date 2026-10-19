@@ -11,8 +11,8 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	"prdeck/internal/cache"
-	"prdeck/internal/model"
+	"github.com/simlf/pr-deck/internal/cache"
+	"github.com/simlf/pr-deck/internal/model"
 )
 
 func TestClickedURL(t *testing.T) {

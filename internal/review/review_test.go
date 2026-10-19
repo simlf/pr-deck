@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"prdeck/internal/model"
+	"github.com/simlf/pr-deck/internal/model"
 )
 
 func TestOf(t *testing.T) {

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"prdeck/internal/model"
-	"prdeck/internal/state"
-	"prdeck/internal/window"
+	"github.com/simlf/pr-deck/internal/model"
+	"github.com/simlf/pr-deck/internal/state"
+	"github.com/simlf/pr-deck/internal/window"
 )
 
 // Plan kinds: what pressing m leads to.

@@ -21,9 +21,11 @@ It also does a few light actions, all with a confirmation:
 ## Install
 
 ```sh
-go install ./cmd/prd          # Go 1.24+
+go install github.com/simlf/pr-deck/cmd/prd@latest   # Go 1.24+ (or `go install ./cmd/prd` from a clone)
 prd doctor                    # shows what is configured; never prints tokens
 ```
+
+The binary goes to `$(go env GOPATH)/bin` (usually `~/go/bin`); make sure it is on your `PATH`.
 
 Copy `docs/config.example.toml` to `~/.config/pr-deck/config.toml` (or set `PRD_CONFIG`) and replace the example values. With no config at all, pr-deck still works with GitHub alone, using `GITHUB_TOKEN`, `GH_TOKEN` or `gh auth token`.
 

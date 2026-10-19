@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"prdeck/internal/model"
-	"prdeck/internal/pairs"
-	"prdeck/internal/review"
-	"prdeck/internal/state"
-	"prdeck/internal/window"
+	"github.com/simlf/pr-deck/internal/model"
+	"github.com/simlf/pr-deck/internal/pairs"
+	"github.com/simlf/pr-deck/internal/review"
+	"github.com/simlf/pr-deck/internal/state"
+	"github.com/simlf/pr-deck/internal/window"
 )
 
 // Event is something worth a toast. ID dedupes it across daemon ticks.
