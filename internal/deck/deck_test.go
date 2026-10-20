@@ -22,6 +22,9 @@ type fakeGH struct {
 	prs    map[string]model.PR
 	merged []string
 	reruns []string
+
+	plans     map[string][]model.Plan
+	planReads int
 }
 
 func (f *fakeGH) SearchOpen(context.Context) ([]model.PR, error) {
@@ -53,6 +56,11 @@ func (f *fakeGH) Merge(_ context.Context, p model.PR, _ string) error {
 func (f *fakeGH) RerunFailed(_ context.Context, p model.PR) (int, error) {
 	f.reruns = append(f.reruns, p.Key())
 	return 1, nil
+}
+
+func (f *fakeGH) Plans(_ context.Context, p model.PR) ([]model.Plan, error) {
+	f.planReads++
+	return f.plans[p.Key()], nil
 }
 
 type fakeJira map[string]jira.Ticket
@@ -499,5 +507,31 @@ func TestWindowToastOnlyWhenSomethingWaits(t *testing.T) {
 		if strings.HasPrefix(e.ID, "window-open:") {
 			t.Fatalf("no critical PR is ready, but got %+v", e)
 		}
+	}
+}
+
+func TestPlansAreReadAndCached(t *testing.T) {
+	gh := scenario()
+	key := "acme/infra-config#318"
+	gh.plans = map[string][]model.Plan{key: {{Workspace: "eng", Add: 1}}}
+	now := tue1102
+	d := newDeck(t, gh, now)
+	d.Now = func() time.Time { return now }
+	s, _ := d.Refresh(context.Background())
+	if p, _ := s.Find(key); len(p.Plans) != 1 || p.Plans[0].Workspace != "eng" {
+		t.Fatalf("plans not attached: %+v", p.Plans)
+	}
+	reads := gh.planReads
+	now = now.Add(time.Minute)
+	d.Refresh(context.Background())
+	if gh.planReads != reads {
+		t.Fatalf("unchanged PRs must reuse cached plans: %d → %d reads", reads, gh.planReads)
+	}
+	p := gh.prs[key]
+	p.UpdatedAt = now
+	gh.prs[key] = p
+	d.Refresh(context.Background())
+	if gh.planReads != reads+1 {
+		t.Fatalf("an updated PR re-reads its plans: %d → %d reads", reads, gh.planReads)
 	}
 }

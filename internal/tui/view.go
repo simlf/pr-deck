@@ -220,6 +220,13 @@ func (m *Model) why(p model.PR, w int, full bool) []string {
 	} else {
 		add(meta)
 	}
+	for i, pl := range p.Plans {
+		lead := "  "
+		if m.planSel(p) == i {
+			lead = sSel.Render("▸") + " "
+		}
+		add(lead + sYellow.Render("Δ "+pl.Workspace) + " " + planCounts(pl))
+	}
 	purpose := p.Purpose
 	if purpose == topic {
 		purpose = ""
@@ -279,6 +286,17 @@ func (m *Model) why(p model.PR, w int, full bool) []string {
 	return clip(out, w)
 }
 
+func planCounts(pl model.Plan) string {
+	if pl.Add+pl.Change+pl.Destroy == 0 {
+		return sDim.Render(pl.Summary)
+	}
+	d := sDim
+	if pl.Destroy > 0 {
+		d = sRed
+	}
+	return sGreen.Render(fmt.Sprintf("+%d", pl.Add)) + " " + sYellow.Render(fmt.Sprintf("~%d", pl.Change)) + " " + d.Render(fmt.Sprintf("-%d", pl.Destroy))
+}
+
 // clip cuts styled lines to w visible cells.
 func clip(lines []string, w int) []string {
 	st := lipgloss.NewStyle().MaxWidth(w)
@@ -315,6 +333,7 @@ func (m *Model) help(w int) string {
 	rows := [][2]string{
 		{"j/k ↑/↓", "move · g/G top/bottom · wheel scrolls"},
 		{"enter / o", "open the PR in the browser (double-click a row too)"},
+		{"tab", "step through the PR's terraform plans with changes; enter opens the selected plan"},
 		{"J", "open the Jira ticket (click the grey key in a group header too)"},
 		{"w", "why: full purpose, the prompt that created the PR, pair, review"},
 		{"y / Y", "copy link / copy \"topic (KEY) · PR · purpose\" for chat"},
@@ -334,7 +353,7 @@ func (m *Model) help(w int) string {
 	for _, r := range rows {
 		b.WriteString(sBold.Render(fit(r[0], 12)) + " " + fit(r[1], w-14) + "\n")
 	}
-	b.WriteString("\n" + sDim.Render("glyphs: ● ready  ✓ merged  ○ review  ✗ CI/conflict  ◌ running  ◇ waits on sibling  ◦ draft  ◷ scheduled  ⚑ untouched today  ▲ production label"))
+	b.WriteString("\n" + sDim.Render("glyphs: ● ready  Δ terraform plans with changes  ✓ merged  ○ review  ✗ CI/conflict  ◌ running  ◇ waits on sibling  ◦ draft  ◷ scheduled  ⚑ untouched today  ▲ production label"))
 	b.WriteString("\n" + sDim.Render("review: ✓ approved  ✎ changes  ◌ posted/waiting  ◔ overdue  ○ not posted") + "\n\n" + sDim.Render("any key closes"))
 	return b.String()
 }

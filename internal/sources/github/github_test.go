@@ -41,6 +41,10 @@ func (f *fakeServer) handler(t *testing.T) http.Handler {
 		}
 		f.mu.Lock()
 		defer f.mu.Unlock()
+		if r.URL.Path == "/repos/acme/infra-config/issues/319/comments" {
+			w.Write([]byte(planComments))
+			return
+		}
 		if strings.HasSuffix(r.URL.Path, "/rerun-failed-jobs") {
 			f.reruns = append(f.reruns, r.URL.Path)
 			w.WriteHeader(201)
@@ -117,5 +121,37 @@ func TestGraphQLURL(t *testing.T) {
 	}
 	if got := New(nil, "https://api.github.com/", "", "").graphqlURL(); got != "https://api.github.com/graphql" {
 		t.Fatalf("graphql url = %s", got)
+	}
+}
+
+const planComments = `[
+ {"html_url":"u1","body":"<!-- dflook/terraform-github-actions {\"workspace\":\"eng\"} -->\nTerraform plan in __infra__ in the __eng__ workspace\n<details open>\n<summary>Plan: 1 to add, 0 to change, 0 to destroy.</summary>\n\n` + "```hcl\\n+ x\\n```" + `\n</details>"},
+ {"html_url":"u2","body":"<!-- dflook/terraform-github-actions {\"workspace\":\"prod\"} -->\n<details>\n<summary>No changes. Your infrastructure matches the configuration.</summary>\n</details>"},
+ {"html_url":"u3","body":"looks good"},
+ {"html_url":"u4","body":"Terraform plan in __modules/vpc__\n<details>\n<summary><strike>Plan: 0 to add, 1 to change, 0 to destroy.</strike></summary>\n</details>"},
+ {"html_url":"u5","body":"Terraform plan in __modules/dns__\n<details>\n<summary>Plan generated.</summary>\n</details>"},
+ {"html_url":"u6","body":"<!-- dflook/terraform-github-actions {\"workspace\":\"eng\"} -->\n<details>\n<summary>Plan: 0 to add, 2 to change, 3 to destroy.</summary>\n</details>"}
+]`
+
+func TestPlansKeepChangedWorkspaces(t *testing.T) {
+	f := &fakeServer{}
+	srv := httptest.NewServer(f.handler(t))
+	defer srv.Close()
+	c := New(srv.Client(), srv.URL, "tok", "")
+	pls, err := c.Plans(context.Background(), model.PR{Repo: "acme/infra-config", Number: 319})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []model.Plan{
+		{Workspace: "eng", Summary: "Plan: 0 to add, 2 to change, 3 to destroy.", Change: 2, Destroy: 3, URL: "u6"},
+		{Workspace: "modules/dns", Summary: "Plan generated.", URL: "u5"},
+	}
+	if len(pls) != len(want) {
+		t.Fatalf("plans = %+v", pls)
+	}
+	for i := range want {
+		if pls[i] != want[i] {
+			t.Errorf("plan %d = %+v, want %+v", i, pls[i], want[i])
+		}
 	}
 }

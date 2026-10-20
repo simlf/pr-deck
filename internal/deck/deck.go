@@ -101,6 +101,7 @@ func (d *Deck) Refresh(ctx context.Context) (model.Snapshot, error) {
 	snap.Errors = append(snap.Errors, d.enrichTickets(ctx, open, prev, now)...)
 	snap.Errors = append(snap.Errors, d.enrichWhy(open)...)
 	snap.Errors = append(snap.Errors, d.enrichPosted(ctx, open, prev, now)...)
+	snap.Errors = append(snap.Errors, d.enrichPlans(ctx, open, prev, now)...)
 	pairs.Link(open, d.Cfg.Envs, st.Pairs)
 	sort.SliceStable(open, func(i, j int) bool { return open[i].Key() < open[j].Key() })
 	snap.PRs = open
@@ -120,6 +121,7 @@ func (d *Deck) enrichBasic(p *model.PR) {
 const (
 	ticketTTL = 15 * time.Minute
 	postedTTL = 10 * time.Minute
+	plansTTL  = 5 * time.Minute
 )
 
 func (d *Deck) enrichTickets(ctx context.Context, prs []model.PR, prev model.Snapshot, now time.Time) []string {
@@ -215,6 +217,28 @@ func (d *Deck) enrichPosted(ctx context.Context, prs []model.PR, prev model.Snap
 			continue
 		}
 		p.Posted, p.PostedKnown, p.PostedChecked = at, true, now
+	}
+	return dedupe(errs)
+}
+
+// enrichPlans re-reads plan comments when the PR changed or plansTTL passed.
+func (d *Deck) enrichPlans(ctx context.Context, prs []model.PR, prev model.Snapshot, now time.Time) []string {
+	var errs []string
+	for i := range prs {
+		p := &prs[i]
+		if p.Merged() || p.Sibling {
+			continue
+		}
+		if old, ok := prev.Find(p.Key()); ok && old.UpdatedAt.Equal(p.UpdatedAt) && now.Sub(old.PlansChecked) < plansTTL {
+			p.Plans, p.PlansChecked = old.Plans, old.PlansChecked
+			continue
+		}
+		pl, err := d.GH.Plans(ctx, *p)
+		if err != nil {
+			errs = append(errs, "plans: "+err.Error())
+			continue
+		}
+		p.Plans, p.PlansChecked = pl, now
 	}
 	return dedupe(errs)
 }

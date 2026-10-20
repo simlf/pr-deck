@@ -60,6 +60,8 @@ type Model struct {
 	plan     deck.Plan
 	input    []rune
 	pairFrom string
+	tfKey    string // PR whose terraform plan line tfSel points at
+	tfSel    int
 
 	msg    string
 	msgErr bool
@@ -217,6 +219,14 @@ func (m *Model) selected() (model.PR, bool) {
 		return model.PR{}, false
 	}
 	return m.view.Snap.Find(m.cursor)
+}
+
+// planSel is the selected terraform plan line of p, or -1.
+func (m *Model) planSel(p model.PR) int {
+	if m.tfKey != p.Key() || m.tfSel >= len(p.Plans) {
+		return -1
+	}
+	return m.tfSel
 }
 
 func (m *Model) say(s string)     { m.msg, m.msgErr = s, false }
@@ -386,7 +396,17 @@ func (m *Model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	switch s {
+	case "tab":
+		next := m.planSel(p) + 1
+		if next >= len(p.Plans) {
+			next = -1
+		}
+		m.tfKey, m.tfSel = p.Key(), next
 	case "enter", "o":
+		if i := m.planSel(p); i >= 0 && s == "enter" {
+			m.open(p.Plans[i].URL, p.Key())
+			return m, nil
+		}
 		m.open(p.URL, p.Key())
 	case "J":
 		if p.TicketURL == "" {
