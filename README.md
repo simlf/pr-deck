@@ -46,6 +46,7 @@ export PATH="$(go env GOPATH)/bin:$PATH"
 prd doctor     # shows what is configured and which tokens resolve; never prints tokens
 prd refresh    # fetch once and print a summary
 prd            # open the board
+prd tutorial   # keys, marks and typical flows (? in the board shows the same)
 ```
 
 ### Configuration
@@ -185,7 +186,18 @@ Add the status-line and popup lines from [Install](#tmux-fallback).
 | `R` / `s` | switch board ↔ recall / cycle the recall sort (needs you, age, repo) |
 | `h`/`l`, click a header | fold / unfold topic groups |
 | `/` | filter by topic, repo, ticket or title |
-| `ctrl+r`, `?`, `q` | refresh now, help, quit |
+| `ctrl+r`, `?`, `q` | refresh now, the guide (keys, marks, flows; `j`/`k` scroll), quit |
+
+### Typical flows
+
+`prd tutorial` prints the full guide. The common flows:
+
+- **Ask for a review:** select the PR, press `P`, then `y`. pr-deck posts once; press `P` again later to copy a nudge.
+- **Merge in order:** select ①, press `m`, then `y`. Then select ②: `m` merges it, or offers a schedule when the prod window is closed.
+- **Fix a red CI:** press `r`. The PR shows `⟳ CI rerun` until the new runs start.
+- **Read a plan:** press `tab` to pick a workspace and list its changed resources, `enter` to open its plan comment.
+- **Answer a comment:** on a PR with `💬`, press `c` to open the newest comment.
+- **End of day:** press `R` for recall, `s` to sort, `f` on each PR you checked.
 
 ### Merge guards
 

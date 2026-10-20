@@ -52,6 +52,7 @@ type Model struct {
 
 	cursor    string
 	offset    int
+	helpOff   int
 	collapsed map[string]bool
 	sort      int
 	filter    string
@@ -326,7 +327,14 @@ func (m *Model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	switch m.mode {
 	case modeHelp:
-		m.mode = modeNormal
+		switch s {
+		case "j", "down":
+			m.helpOff++
+		case "k", "up":
+			m.helpOff--
+		default:
+			m.mode = modeNormal
+		}
 		return m, nil
 	case modeConfirm:
 		switch s {
@@ -416,7 +424,7 @@ func (m *Model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "/":
 		m.mode, m.input = modeFilter, []rune(m.filter)
 	case "?":
-		m.mode = modeHelp
+		m.mode, m.helpOff = modeHelp, 0
 	case "ctrl+r":
 		m.busy = "refreshing…"
 		return m, m.refresh()

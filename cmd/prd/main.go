@@ -47,6 +47,7 @@ usage:
                               open a pr-deck pane in herdr (used by plugin actions)
   prd refresh                 refresh the cache once and print a summary
   prd doctor                  check configuration and credentials (never prints tokens)
+  prd tutorial                keys, marks and typical flows (also ? in the TUI)
   prd version
 
 config: $PRD_CONFIG or ~/.config/pr-deck/config.toml (see docs/config.example.toml)
@@ -65,8 +66,11 @@ func run(args []string, stdout, stderr io.Writer) error {
 		cmd, args = args[0], args[1:]
 	}
 	switch cmd {
-	case "help", "-h", "--help":
+	case "-h", "--help":
 		fmt.Fprint(stdout, usage)
+		return nil
+	case "help", "tutorial":
+		fmt.Fprint(stdout, usage+"\n"+tui.Guide)
 		return nil
 	case "version":
 		fmt.Fprintln(stdout, "prd", version)

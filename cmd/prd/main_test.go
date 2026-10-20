@@ -146,3 +146,15 @@ func TestHerdrManifest(t *testing.T) {
 		t.Fatalf("manifest = %+v", m)
 	}
 }
+
+func TestTutorialPrintsTheGuide(t *testing.T) {
+	var out bytes.Buffer
+	if err := run([]string{"tutorial"}, &out, &out); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"usage:", "KEYS", "MARKS", "FLOWS", "Merge in order"} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("tutorial misses %q", want)
+		}
+	}
+}
