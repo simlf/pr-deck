@@ -41,7 +41,8 @@ func (f *fakeGH) Merge(_ context.Context, p model.PR, _ string) error {
 	f.prs[p.Key()] = x
 	return nil
 }
-func (f *fakeGH) RerunFailed(context.Context, model.PR) (int, error) { return 0, nil }
+func (f *fakeGH) RerunFailed(context.Context, model.PR) (int, error)    { return 0, nil }
+func (f *fakeGH) Plans(context.Context, model.PR) ([]model.Plan, error) { return nil, nil }
 
 type fakeHost struct {
 	mu   sync.Mutex

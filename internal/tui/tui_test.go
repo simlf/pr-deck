@@ -45,7 +45,8 @@ func (f *fakeGH) Merge(_ context.Context, p model.PR, _ string) error {
 	f.merged = append(f.merged, p.Key())
 	return nil
 }
-func (f *fakeGH) RerunFailed(context.Context, model.PR) (int, error) { return 1, nil }
+func (f *fakeGH) RerunFailed(context.Context, model.PR) (int, error)    { return 1, nil }
+func (f *fakeGH) Plans(context.Context, model.PR) ([]model.Plan, error) { return nil, nil }
 
 var ansi = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
@@ -108,6 +109,8 @@ func press(m *Model, keys ...string) tea.Cmd {
 			msg = tea.KeyMsg{Type: tea.KeyEnter}
 		case "esc":
 			msg = tea.KeyMsg{Type: tea.KeyEsc}
+		case "tab":
+			msg = tea.KeyMsg{Type: tea.KeyTab}
 		case "backspace":
 			msg = tea.KeyMsg{Type: tea.KeyBackspace}
 		default:
@@ -333,5 +336,39 @@ func TestPurposeGroups(t *testing.T) {
 	p, _ := m.view.Snap.Find("acme/infra-live#7")
 	if out := plain(strings.Join(m.why(p, 120, false), "\n")); strings.Contains(out, "why ") {
 		t.Errorf("drawer repeats the Purpose already in the topic line:\n%s", out)
+	}
+}
+
+func TestPlanMarkAndDrawer(t *testing.T) {
+	m, _ := fixture(t)
+	m.dk.Cfg.Deck.OpenCmd = []string{"true"}
+	key := "acme/infra-config#318"
+	for i := range m.view.Snap.PRs {
+		if m.view.Snap.PRs[i].Key() == key {
+			m.view.Snap.PRs[i].Plans = []model.Plan{
+				{Workspace: "eng", Add: 1, Destroy: 2, URL: "https://github.example/c/1"},
+				{Workspace: "modules/dns", Summary: "Plan generated.", URL: "https://github.example/c/2"},
+			}
+		}
+	}
+	m.cursor = key
+	out := plain(m.View())
+	for _, want := range []string{"Δ 2 ws merge", "Δ eng +1 ~0 -2", "Δ modules/dns Plan generated."} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q\n%s", want, out)
+		}
+	}
+	press(m, "tab", "tab")
+	if !strings.Contains(plain(m.View()), "▸ Δ modules/dns") {
+		t.Fatalf("tab should select the second plan line:\n%s", plain(m.View()))
+	}
+	press(m, "enter")
+	if !strings.Contains(m.msg, "https://github.example/c/2") {
+		t.Fatalf("enter should open the selected plan comment, msg=%q", m.msg)
+	}
+	press(m, "tab")
+	press(m, "enter")
+	if !strings.Contains(m.msg, "/pull/318") {
+		t.Fatalf("after the last plan line enter opens the PR again, msg=%q", m.msg)
 	}
 }

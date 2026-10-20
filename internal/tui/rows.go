@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
 
 	"github.com/simlf/pr-deck/internal/deck"
@@ -257,6 +258,28 @@ func (m *Model) age(p model.PR) string {
 	return review.Age(m.view.Now.Sub(p.CreatedAt))
 }
 
+// planMark is the list mark for terraform plans with changes ("Δ 2 ws "),
+// red when one of them destroys something.
+func planMark(p model.PR) (string, int) {
+	if len(p.Plans) == 0 {
+		return "", 0
+	}
+	st := sYellow
+	for _, pl := range p.Plans {
+		if pl.Destroy > 0 {
+			st = sRed
+		}
+	}
+	t := fmt.Sprintf("Δ %d ws ", len(p.Plans))
+	return st.Render(t), runewidth.StringWidth(t)
+}
+
+// nextCell is the next action, after the plan mark when there is one.
+func (m *Model) nextCell(p model.PR, st lipgloss.Style, w int) string {
+	mark, mw := planMark(p)
+	return mark + cell(st, m.view.Next(p), max(1, w-mw))
+}
+
 func (m *Model) flagMark(p model.PR) string {
 	if m.view.Flagged(p) {
 		return sYellow.Render("⚑")
@@ -347,7 +370,7 @@ func (m *Model) boardLines(width int) []line {
 			}
 			row := sDim.Render(lead(p, first, last)) + stateStyle(st).Render(fit(deck.Glyph(st), 2)) +
 				m.renderRef(p, refW, sel) + cell(sDim, p.Env, envW) + cell(stateStyle(st), m.stateLabel(p), stW) +
-				cell(reviewStyle(ri.Kind), revText, revW) + cell(sDim, v.Next(p), nextW) + cell(sDim, m.age(p), ageW) + m.flagMark(p)
+				cell(reviewStyle(ri.Kind), revText, revW) + m.nextCell(p, sDim, nextW) + cell(sDim, m.age(p), ageW) + m.flagMark(p)
 			if sel {
 				row = sSel.Render("▌") + row
 			} else {
@@ -376,7 +399,7 @@ func (m *Model) recallLines(width int) []line {
 		st := v.StateOf(p)
 		ri := v.Review(p)
 		l1 := m.flagMark(p) + " " + sDim.Render(lead(p, first, last)) + stateStyle(st).Render(fit(deck.Glyph(st), 2)) +
-			m.renderRef(p, refW, sel) + cell(sCyan, v.TopicShort(p), topicW) + cell(sDim, m.age(p), ageW) + cell(sPlain, v.Next(p), nextW)
+			m.renderRef(p, refW, sel) + cell(sCyan, v.TopicShort(p), topicW) + cell(sDim, m.age(p), ageW) + m.nextCell(p, sPlain, nextW)
 		cont := "   "
 		if p.Pair != nil && !last {
 			if p.Pair.Inferred {

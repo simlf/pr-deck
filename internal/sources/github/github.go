@@ -1,5 +1,6 @@
 // Package github reads PR state from the GitHub GraphQL API and performs the
-// few writes pr-deck allows: merge and rerun of failed CI jobs.
+// few writes pr-deck allows: merge and rerun of failed CI jobs. It also reads
+// the terraform plan comments dflook/terraform-github-actions posts.
 package github
 
 import (
@@ -9,7 +10,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -23,6 +26,7 @@ type API interface {
 	Get(ctx context.Context, repo string, number int) (model.PR, error)
 	Merge(ctx context.Context, p model.PR, method string) error
 	RerunFailed(ctx context.Context, p model.PR) (int, error)
+	Plans(ctx context.Context, p model.PR) ([]model.Plan, error)
 }
 
 // Client talks to api.github.com or a GitHub Enterprise server.
@@ -337,4 +341,77 @@ func (c *Client) RerunFailed(ctx context.Context, p model.PR) (int, error) {
 		return 0, fmt.Errorf("no failed GitHub Actions runs on %s", p.Ref())
 	}
 	return n, nil
+}
+
+var (
+	planHeaderRe  = regexp.MustCompile(`<!--\s*dflook/terraform-github-actions\s+(\{.*?\})\s*-->`)
+	planPathRe    = regexp.MustCompile(`Terraform plan in __(.+?)__`)
+	planSummaryRe = regexp.MustCompile(`(?s)<summary>(.*?)</summary>`)
+	planCountsRe  = regexp.MustCompile(`(\d+) to add, (\d+) to change, (\d+) to destroy`)
+)
+
+// Plans returns p's terraform plan comments that have changes, one per
+// workspace (the latest comment wins).
+func (c *Client) Plans(ctx context.Context, p model.PR) ([]model.Plan, error) {
+	// ponytail: first 100 comments only; page if PRs grow longer threads.
+	url := fmt.Sprintf("%s/repos/%s/issues/%d/comments?per_page=100", c.APIURL, p.Repo, p.Number)
+	var cs []struct {
+		Body    string `json:"body"`
+		HTMLURL string `json:"html_url"`
+	}
+	if err := c.do(ctx, http.MethodGet, url, nil, &cs); err != nil {
+		return nil, err
+	}
+	var out []model.Plan
+	at := map[string]int{}
+	for _, cm := range cs {
+		pl, ok := parsePlan(cm.Body, cm.HTMLURL)
+		if !ok {
+			continue
+		}
+		if i, seen := at[pl.Workspace]; seen {
+			out[i] = pl
+			continue
+		}
+		at[pl.Workspace] = len(out)
+		out = append(out, pl)
+	}
+	return out, nil
+}
+
+// parsePlan reads one plan comment; ok is false for other comments and for
+// plans with no changes or struck out as outdated.
+func parsePlan(body, url string) (model.Plan, bool) {
+	hdr := planHeaderRe.FindStringSubmatch(body)
+	path := planPathRe.FindStringSubmatch(body)
+	if hdr == nil && path == nil {
+		return model.Plan{}, false
+	}
+	sm := planSummaryRe.FindStringSubmatch(body)
+	if sm == nil {
+		return model.Plan{}, false
+	}
+	summary := strings.TrimSpace(sm[1])
+	if !strings.HasPrefix(summary, "Plan") {
+		return model.Plan{}, false
+	}
+	pl := model.Plan{Summary: summary, URL: url}
+	if hdr != nil {
+		var h struct {
+			Workspace string `json:"workspace"`
+		}
+		_ = json.Unmarshal([]byte(hdr[1]), &h)
+		if h.Workspace != "default" {
+			pl.Workspace = h.Workspace
+		}
+	}
+	if pl.Workspace == "" && path != nil {
+		pl.Workspace = path[1]
+	}
+	if m := planCountsRe.FindStringSubmatch(summary); m != nil {
+		pl.Add, _ = strconv.Atoi(m[1])
+		pl.Change, _ = strconv.Atoi(m[2])
+		pl.Destroy, _ = strconv.Atoi(m[3])
+	}
+	return pl, true
 }

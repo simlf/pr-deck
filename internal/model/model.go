@@ -66,6 +66,9 @@ type PR struct {
 	// Jira and Slack rate limits.
 	TicketFetched time.Time `json:"ticket_fetched,omitempty"`
 	PostedChecked time.Time `json:"posted_checked,omitempty"`
+	// Plans are the terraform plan comments with changes.
+	Plans        []Plan    `json:"plans,omitempty"`
+	PlansChecked time.Time `json:"plans_checked,omitempty"`
 	// Sibling marks a PR fetched only because an open PR pairs with it.
 	Sibling bool `json:"sibling,omitempty"`
 }
@@ -108,6 +111,16 @@ type Why struct {
 	SessionID string    `json:"session_id,omitempty"`
 	Cwd       string    `json:"cwd,omitempty"`
 	At        time.Time `json:"at"`
+}
+
+// Plan is one workspace's terraform plan comment that has changes.
+type Plan struct {
+	Workspace string `json:"workspace"`
+	Summary   string `json:"summary"`
+	Add       int    `json:"add"`
+	Change    int    `json:"change"`
+	Destroy   int    `json:"destroy"`
+	URL       string `json:"url"`
 }
 
 // PairRef places a PR in an ordered eng → prod chain.
