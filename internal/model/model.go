@@ -69,6 +69,8 @@ type PR struct {
 	// Plans are the terraform plan comments with changes.
 	Plans        []Plan    `json:"plans,omitempty"`
 	PlansChecked time.Time `json:"plans_checked,omitempty"`
+	// Comments are recent comments and reviews by people other than the author.
+	Comments []Comment `json:"comments,omitempty"`
 	// Sibling marks a PR fetched only because an open PR pairs with it.
 	Sibling bool `json:"sibling,omitempty"`
 }
@@ -129,6 +131,16 @@ type Plan struct {
 type PlanResource struct {
 	Action  string `json:"action"`
 	Address string `json:"address"`
+}
+
+// Comment is one issue comment, inline review comment or review.
+type Comment struct {
+	Author string    `json:"author"`
+	Body   string    `json:"body"` // first line
+	Path   string    `json:"path,omitempty"`
+	Line   int       `json:"line,omitempty"`
+	URL    string    `json:"url"`
+	At     time.Time `json:"at"`
 }
 
 // PairRef places a PR in an ordered eng → prod chain.

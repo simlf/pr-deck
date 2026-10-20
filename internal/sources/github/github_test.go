@@ -180,3 +180,31 @@ func TestParsePlanResources(t *testing.T) {
 		t.Fatalf("resources =\n%+v\nwant\n%+v", pl.Resources, want)
 	}
 }
+
+func TestCommentsKeepPeopleOtherThanTheAuthor(t *testing.T) {
+	var g gqlPR
+	err := json.Unmarshal([]byte(`{"author":{"login":"me"},
+	 "comments":{"nodes":[
+	  {"author":{"__typename":"User","login":"dana"},"body":"why 25m?\nmore","createdAt":"2026-10-16T10:00:00Z","url":"c1"},
+	  {"author":{"__typename":"Bot","login":"github-actions"},"body":"plan","createdAt":"2026-10-16T11:00:00Z","url":"c2"},
+	  {"author":{"__typename":"User","login":"me"},"body":"done","createdAt":"2026-10-16T12:00:00Z","url":"c3"}]},
+	 "reviews":{"nodes":[
+	  {"author":{"__typename":"User","login":"lee"},"state":"CHANGES_REQUESTED","body":"","submittedAt":"2026-10-16T13:00:00Z","url":"r1",
+	   "comments":{"nodes":[{"author":{"__typename":"User","login":"lee"},"body":"lower burst","path":"main.tf","line":0,"originalLine":12,"createdAt":"2026-10-16T13:00:01Z","url":"r1c"}]}},
+	  {"author":{"__typename":"User","login":"kim"},"state":"APPROVED","body":"lgtm","submittedAt":"2026-10-16T14:00:00Z","url":"r2","comments":{"nodes":[]}},
+	  {"author":{"__typename":"User","login":"kim"},"state":"COMMENTED","body":"","submittedAt":"2026-10-16T15:00:00Z","url":"r3","comments":{"nodes":[]}}]}}`), &g)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := g.toModel().Comments
+	var urls []string
+	for _, c := range got {
+		urls = append(urls, c.URL)
+	}
+	if strings.Join(urls, " ") != "r1c r1 c1" {
+		t.Fatalf("comments = %v", urls)
+	}
+	if got[0].Path != "main.tf" || got[0].Line != 12 || got[1].Body != "requested changes" || got[2].Body != "why 25m?" {
+		t.Fatalf("comments = %+v", got)
+	}
+}

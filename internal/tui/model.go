@@ -437,6 +437,12 @@ func (m *Model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.open(p.URL, p.Key())
+	case "c":
+		if cs := m.view.NewComments(p); len(cs) > 0 {
+			m.open(cs[0].URL, p.Key())
+		} else {
+			m.say("no new human comment on " + p.Ref())
+		}
 	case "J":
 		if p.TicketURL == "" {
 			m.say("no Jira link for this PR")

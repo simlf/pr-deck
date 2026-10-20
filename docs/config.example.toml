@@ -18,6 +18,7 @@ query = ""                             # extra search qualifiers, e.g. "org:exam
 merge_method = "squash"                # squash | merge | rebase
 token_env = ["GITHUB_TOKEN", "GH_TOKEN"]
 token_cmd = ["gh", "auth", "token"]    # used when no token_env is set
+ignore_commenters = ["github-actions", "claude-review", "renovate", "shop-ops"]  # not human (💬); *[bot] never is
 
 [jira]
 base_url = "https://example.atlassian.net"

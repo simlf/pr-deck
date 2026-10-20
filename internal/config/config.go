@@ -48,6 +48,8 @@ type GitHub struct {
 	MergeMethod string   `toml:"merge_method"` // squash | merge | rebase
 	TokenEnv    []string `toml:"token_env"`    // env vars tried in order
 	TokenCmd    []string `toml:"token_cmd"`    // fallback command printing a token
+	// IgnoreCommenters are logins whose comments never count as human; *[bot] always is.
+	IgnoreCommenters []string `toml:"ignore_commenters"`
 }
 
 // Jira configures ticket topics.
@@ -144,11 +146,12 @@ func (d Duration) String() string {
 func Default() Config {
 	return Config{
 		GitHub: GitHub{
-			APIURL:      "https://api.github.com",
-			WebHost:     "github.com",
-			MergeMethod: "squash",
-			TokenEnv:    []string{"GITHUB_TOKEN", "GH_TOKEN"},
-			TokenCmd:    []string{"gh", "auth", "token"},
+			APIURL:           "https://api.github.com",
+			WebHost:          "github.com",
+			MergeMethod:      "squash",
+			TokenEnv:         []string{"GITHUB_TOKEN", "GH_TOKEN"},
+			TokenCmd:         []string{"gh", "auth", "token"},
+			IgnoreCommenters: []string{"github-actions", "claude-review", "renovate"},
 		},
 		Jira: Jira{TokenEnv: "JIRA_API_TOKEN", ShortLen: 22},
 		Review: Review{

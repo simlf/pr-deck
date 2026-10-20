@@ -71,6 +71,9 @@ fragment pr on PullRequest {
   repository { nameWithOwner }
   labels(first: 20) { nodes { name } }
   latestReviews(first: 10) { nodes { author { login } state body submittedAt } }
+  comments(last: 20) { nodes { author { __typename login } body createdAt url } }
+  reviews(last: 20) { nodes { author { __typename login } state body submittedAt url
+    comments(first: 10) { nodes { author { __typename login } body path line originalLine createdAt url } } } }
   commits(last: 1) { nodes { commit { committedDate statusCheckRollup { state
     contexts(first: 50) { nodes { __typename
       ... on CheckRun { conclusion checkSuite { workflowRun { databaseId } } } } } } } } }
@@ -116,6 +119,14 @@ type gqlPR struct {
 			SubmittedAt time.Time               `json:"submittedAt"`
 		}
 	} `json:"latestReviews"`
+	Comments struct{ Nodes []gqlComment } `json:"comments"`
+	Reviews  struct {
+		Nodes []struct {
+			gqlComment
+			State    string                       `json:"state"`
+			Comments struct{ Nodes []gqlComment } `json:"comments"`
+		}
+	} `json:"reviews"`
 	Commits struct {
 		Nodes []struct {
 			Commit struct {
@@ -137,6 +148,57 @@ type gqlPR struct {
 	} `json:"commits"`
 }
 
+type gqlComment struct {
+	Author *struct {
+		Typename string `json:"__typename"`
+		Login    string `json:"login"`
+	} `json:"author"`
+	Body         string    `json:"body"`
+	CreatedAt    time.Time `json:"createdAt"`
+	SubmittedAt  time.Time `json:"submittedAt"`
+	URL          string    `json:"url"`
+	Path         string    `json:"path"`
+	Line         int       `json:"line"`
+	OriginalLine int       `json:"originalLine"`
+}
+
+// comments keeps what people other than the author wrote, newest first:
+// issue comments, inline comments, and reviews that request changes or say something.
+func (g gqlPR) comments(author string) []model.Comment {
+	var out []model.Comment
+	add := func(c gqlComment) {
+		if c.Author == nil || c.Author.Typename == "Bot" || c.Author.Login == author {
+			return
+		}
+		at := c.CreatedAt
+		if at.IsZero() {
+			at = c.SubmittedAt
+		}
+		line := c.Line
+		if line == 0 {
+			line = c.OriginalLine
+		}
+		out = append(out, model.Comment{Author: c.Author.Login, Body: firstLine(c.Body, 100), Path: c.Path, Line: line, URL: c.URL, At: at})
+	}
+	for _, c := range g.Comments.Nodes {
+		add(c)
+	}
+	for _, r := range g.Reviews.Nodes {
+		switch {
+		case r.State == "CHANGES_REQUESTED" && strings.TrimSpace(r.Body) == "":
+			r.Body = "requested changes"
+			fallthrough
+		case r.State == "CHANGES_REQUESTED", r.State == "COMMENTED" && strings.TrimSpace(r.Body) != "":
+			add(r.gqlComment)
+		}
+		for _, c := range r.Comments.Nodes {
+			add(c)
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].At.After(out[j].At) })
+	return out
+}
+
 func (g gqlPR) toModel() model.PR {
 	p := model.PR{
 		Repo: g.Repository.NameWithOwner, Number: g.Number, Title: g.Title, URL: g.URL, Body: g.Body,
@@ -149,6 +211,7 @@ func (g gqlPR) toModel() model.PR {
 	for _, l := range g.Labels.Nodes {
 		p.Labels = append(p.Labels, l.Name)
 	}
+	p.Comments = g.comments(p.Author)
 	want := map[string]string{model.ReviewApproved: "APPROVED", model.ReviewChanges: "CHANGES_REQUESTED"}[g.ReviewDecision]
 	reviews := g.LatestReviews.Nodes
 	sort.Slice(reviews, func(i, j int) bool { return reviews[i].SubmittedAt.After(reviews[j].SubmittedAt) })
