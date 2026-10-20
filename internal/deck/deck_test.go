@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/simlf/pr-deck/internal/cache"
 	"github.com/simlf/pr-deck/internal/config"
 	"github.com/simlf/pr-deck/internal/model"
 	"github.com/simlf/pr-deck/internal/sources/jira"
@@ -515,7 +516,7 @@ func TestWindowToastOnlyWhenSomethingWaits(t *testing.T) {
 func TestPlansAreReadAndCached(t *testing.T) {
 	gh := scenario()
 	key := "acme/infra-config#318"
-	gh.plans = map[string][]model.Plan{key: {{Workspace: "eng", Add: 1}}}
+	gh.plans = map[string][]model.Plan{key: {{Workspace: "eng", Add: 1, Resources: []model.PlanResource{{Action: "+", Address: "x.y"}}}}}
 	now := tue1102
 	d := newDeck(t, gh, now)
 	d.Now = func() time.Time { return now }
@@ -535,6 +536,20 @@ func TestPlansAreReadAndCached(t *testing.T) {
 	d.Refresh(context.Background())
 	if gh.planReads != reads+1 {
 		t.Fatalf("an updated PR re-reads its plans: %d → %d reads", reads, gh.planReads)
+	}
+	gh.plans[key] = []model.Plan{{Workspace: "eng", Add: 1}}
+	snap, _ := d.Cached()
+	for i := range snap.PRs {
+		if snap.PRs[i].Key() == key {
+			snap.PRs[i].Plans[0].Resources = nil
+		}
+	}
+	if err := cache.Save(d.SnapshotPath(), snap); err != nil {
+		t.Fatal(err)
+	}
+	d.Refresh(context.Background())
+	if gh.planReads != reads+2 {
+		t.Fatalf("plans cached without resources (older pr-deck) are read again: %d → %d reads", reads, gh.planReads)
 	}
 }
 

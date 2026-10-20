@@ -311,24 +311,39 @@ func planCounts(pl model.Plan) string {
 	return sGreen.Render(fmt.Sprintf("+%d", pl.Add)) + " " + sYellow.Render(fmt.Sprintf("~%d", pl.Change)) + " " + d.Render(fmt.Sprintf("-%d", pl.Destroy))
 }
 
-const planResMax = 8
+const (
+	planResMax  = 8
+	planAttrMax = 3
+)
 
 // planResources lists pl's changed addresses grouped by action, replace and destroy in red.
 func planResources(pl model.Plan, w int) []string {
 	var out []string
+	n := 0
 	for _, act := range []string{"+", "~", "-/+", "-"} {
 		st := map[string]lipgloss.Style{"+": sGreen, "~": sYellow}[act]
 		if act == "-/+" || act == "-" {
 			st = sRed
 		}
 		for _, r := range pl.Resources {
-			if r.Action == act {
-				out = append(out, "    "+st.Render(fmt.Sprintf("%-3s", act))+" "+runewidth.Truncate(r.Address, w-8, "…"))
+			if r.Action != act {
+				continue
+			}
+			if n++; n > planResMax {
+				continue
+			}
+			out = append(out, "    "+st.Render(fmt.Sprintf("%-3s", act))+" "+runewidth.Truncate(r.Address, w-8, "…"))
+			for i, c := range r.Changes {
+				if i == planAttrMax {
+					out = append(out, sDim.Render("          …"))
+					break
+				}
+				out = append(out, sDim.Render("          "+runewidth.Truncate(c, w-10, "…")))
 			}
 		}
 	}
-	if len(out) > planResMax {
-		out = append(out[:planResMax], sDim.Render(fmt.Sprintf("    +%d more · tab, enter: open the plan", len(out)-planResMax)))
+	if n > planResMax {
+		out = append(out, sDim.Render(fmt.Sprintf("    +%d more · tab, enter: open the plan", n-planResMax)))
 	}
 	return out
 }
