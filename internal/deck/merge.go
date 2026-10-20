@@ -81,6 +81,8 @@ func (v View) blocker(p model.PR) string {
 		return "◌ CI still running on " + p.Ref()
 	case p.Mergeable == "CONFLICTING":
 		return p.Ref() + " has merge conflicts"
+	case p.MergeState == "BEHIND":
+		return p.Ref() + " is behind its base and GitHub requires an up-to-date branch: update it on GitHub, then merge"
 	case p.ReviewDecision != model.ReviewApproved:
 		r := v.Review(p)
 		return r.Glyph + " can't merge " + p.Ref() + ": " + r.Long
@@ -120,6 +122,8 @@ func (v View) Recheck(p model.PR) (bool, string) {
 		return false, "no approval"
 	case p.Mergeable == "CONFLICTING":
 		return false, "merge conflicts"
+	case p.MergeState == "BEHIND":
+		return false, "branch behind base and GitHub requires it up to date"
 	case p.Draft:
 		return false, "draft"
 	}

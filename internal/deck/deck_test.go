@@ -265,6 +265,24 @@ func TestProductionLabelIsCritical(t *testing.T) {
 	}
 }
 
+func TestBehindOnlyBlocksWhenGitHubRequiresUpToDate(t *testing.T) {
+	gh := scenario()
+	d := newDeck(t, gh, fri1000)
+	v := view(t, d, fri1000)
+	eng := get(t, v, "acme/infra-config#318")
+	eng.MergeState = "CLEAN"
+	if pl := v.PlanMerge(eng); pl.Kind != PlanMerge {
+		t.Fatalf("a branch behind main without the requirement merges as is: %+v", pl)
+	}
+	eng.MergeState = "BEHIND"
+	if pl := v.PlanMerge(eng); pl.Kind != PlanRefuse || !strings.Contains(pl.Message, "GitHub requires an up-to-date branch") {
+		t.Fatalf("required up-to-date branch must be said, not updated: %+v", pl)
+	}
+	if ok, why := v.Recheck(eng); ok || !strings.Contains(why, "behind") {
+		t.Fatalf("scheduled merge must not fire behind: %v %q", ok, why)
+	}
+}
+
 func TestOutsideWindowBlockMode(t *testing.T) {
 	gh := scenario()
 	eng := gh.prs["acme/infra-config#318"]

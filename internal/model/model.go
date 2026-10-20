@@ -36,6 +36,8 @@ type PR struct {
 	Draft     bool   `json:"draft"`
 	CI        string `json:"ci"`
 	Mergeable string `json:"mergeable"` // MERGEABLE | CONFLICTING | UNKNOWN
+	// MergeState is GitHub's mergeStateStatus; BEHIND only when an up-to-date branch is required.
+	MergeState string `json:"merge_state,omitempty"`
 
 	// FailedRuns are workflow run ids with failed jobs, for rerun.
 	FailedRuns []int64 `json:"failed_runs,omitempty"`
