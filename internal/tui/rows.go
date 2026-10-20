@@ -235,12 +235,22 @@ func (m *Model) stateLabel(p model.PR) string {
 		}
 		return "◷"
 	case deck.StFail:
+		if m.rerunning[p.Key()] {
+			return "⟳ CI rerun"
+		}
 		return "CI ✗"
 	case deck.StRunning:
 		return "CI ◌"
 	default:
 		return st
 	}
+}
+
+func (m *Model) next(p model.PR) string {
+	if m.rerunning[p.Key()] && p.CI == model.CIFail {
+		return "⟳ CI rerunning, waiting for the new runs"
+	}
+	return m.view.Next(p)
 }
 
 func shortWhen(now, t time.Time) string {
@@ -277,7 +287,7 @@ func planMark(p model.PR) (string, int) {
 // nextCell is the next action, after the plan mark when there is one.
 func (m *Model) nextCell(p model.PR, st lipgloss.Style, w int) string {
 	mark, mw := planMark(p)
-	return mark + cell(st, m.view.Next(p), max(1, w-mw))
+	return mark + cell(st, m.next(p), max(1, w-mw))
 }
 
 func (m *Model) flagMark(p model.PR) string {

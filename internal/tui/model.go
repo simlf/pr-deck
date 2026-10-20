@@ -62,6 +62,8 @@ type Model struct {
 	pairFrom string
 	tfKey    string // PR whose terraform plan line tfSel points at
 	tfSel    int
+	// rerunning holds PRs whose CI was just rerun but still reads as failed.
+	rerunning map[string]bool
 
 	msg    string
 	msgErr bool
@@ -82,7 +84,7 @@ func New(dk *deck.Deck, opt Options) *Model {
 	if layout != Recall {
 		layout = Board
 	}
-	m := &Model{dk: dk, layout: layout, collapsed: map[string]bool{}, focus: opt.Focus, width: 120, height: 32}
+	m := &Model{dk: dk, layout: layout, collapsed: map[string]bool{}, rerunning: map[string]bool{}, focus: opt.Focus, width: 120, height: 32}
 	m.reload()
 	return m
 }
@@ -96,7 +98,21 @@ type doneMsg struct {
 	text    string
 	err     error
 	refresh bool
+	rerun   string // PR key whose CI was rerun
 }
+type rerunPollMsg struct {
+	key string
+	try int
+	pr  model.PR
+	err error
+}
+
+// GitHub can report the old failed runs for a while after a rerun, so the
+// PR is re-read rerunTries times, rerunEvery apart.
+var (
+	rerunEvery = 5 * time.Second
+	rerunTries = 6
+)
 
 // Init implements tea.Model.
 func (m *Model) Init() tea.Cmd {
@@ -267,11 +283,23 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.say(msg.text)
 		}
 		m.recompute()
+		var cmds []tea.Cmd
+		if msg.rerun != "" && msg.err == nil {
+			m.rerunning[msg.rerun] = true
+			cmds = append(cmds, m.pollRerun(msg.rerun, 1))
+		}
 		if msg.refresh {
 			m.busy = "refreshing…"
-			return m, m.refresh()
+			cmds = append(cmds, m.refresh())
 		}
-		return m, nil
+		return m, tea.Batch(cmds...)
+	case rerunPollMsg:
+		m.reload()
+		if msg.err == nil && msg.pr.CI != model.CIFail || msg.try >= rerunTries {
+			delete(m.rerunning, msg.key)
+			return m, nil
+		}
+		return m, m.pollRerun(msg.key, msg.try+1)
 	case tea.MouseMsg:
 		return m, m.mouse(msg)
 	case tea.KeyMsg:
@@ -427,6 +455,10 @@ func (m *Model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "r":
 		if p.CI != model.CIFail {
 			m.say("CI is not failing on " + p.Ref())
+			return m, nil
+		}
+		if m.rerunning[p.Key()] {
+			m.say("CI is already rerunning on " + p.Ref())
 			return m, nil
 		}
 		m.busy = "rerunning failed jobs…"
@@ -592,8 +624,17 @@ func (m *Model) rerun(p model.PR) tea.Cmd {
 		defer cancel()
 		n, err := m.dk.GH.RerunFailed(ctx, p)
 		_ = m.dk.Touch(p.Key())
-		return doneMsg{text: fmt.Sprintf("◌ rerunning %d failed run(s) on %s", n, p.Ref()), err: err, refresh: err == nil}
+		return doneMsg{text: fmt.Sprintf("◌ rerunning %d failed run(s) on %s", n, p.Ref()), err: err, refresh: err == nil, rerun: p.Key()}
 	}
+}
+
+func (m *Model) pollRerun(key string, try int) tea.Cmd {
+	return tea.Tick(rerunEvery, func(time.Time) tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		p, err := m.dk.RefreshPR(ctx, key)
+		return rerunPollMsg{key: key, try: try, pr: p, err: err}
+	})
 }
 
 func (m *Model) execute(pl deck.Plan) tea.Cmd {
