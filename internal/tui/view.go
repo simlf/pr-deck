@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-runewidth"
 
 	"github.com/simlf/pr-deck/internal/deck"
 	"github.com/simlf/pr-deck/internal/model"
@@ -226,6 +227,9 @@ func (m *Model) why(p model.PR, w int, full bool) []string {
 			lead = sSel.Render("▸") + " "
 		}
 		add(lead + sYellow.Render("Δ "+pl.Workspace) + " " + planCounts(pl))
+		if full || len(p.Plans) == 1 || m.planSel(p) == i {
+			out = append(out, planResources(pl, w)...)
+		}
 	}
 	purpose := p.Purpose
 	if purpose == topic {
@@ -295,6 +299,28 @@ func planCounts(pl model.Plan) string {
 		d = sRed
 	}
 	return sGreen.Render(fmt.Sprintf("+%d", pl.Add)) + " " + sYellow.Render(fmt.Sprintf("~%d", pl.Change)) + " " + d.Render(fmt.Sprintf("-%d", pl.Destroy))
+}
+
+const planResMax = 8
+
+// planResources lists pl's changed addresses grouped by action, replace and destroy in red.
+func planResources(pl model.Plan, w int) []string {
+	var out []string
+	for _, act := range []string{"+", "~", "-/+", "-"} {
+		st := map[string]lipgloss.Style{"+": sGreen, "~": sYellow}[act]
+		if act == "-/+" || act == "-" {
+			st = sRed
+		}
+		for _, r := range pl.Resources {
+			if r.Action == act {
+				out = append(out, "    "+st.Render(fmt.Sprintf("%-3s", act))+" "+runewidth.Truncate(r.Address, w-8, "…"))
+			}
+		}
+	}
+	if len(out) > planResMax {
+		out = append(out[:planResMax], sDim.Render(fmt.Sprintf("    +%d more · tab, enter: open the plan", len(out)-planResMax)))
+	}
+	return out
 }
 
 // clip cuts styled lines to w visible cells.

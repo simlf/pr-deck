@@ -8,7 +8,7 @@ Terminal overlay to see work in progress: open PRs grouped by the topic (Jira ti
 - **Eng → prod chains in merge order.** `┌①` and `└②` connect the two halves of a pair, and the prod half shows `◇ waits ①` until eng merges.
 - **Review state on every PR:** ✓ approved, ✎ changes requested, ◌ posted, ◔ overdue (posted in the review channel and still unreviewed after 5h), ○ not posted.
 - **Why the PR exists:** the `Purpose:` line from the PR body plus the exact prompt you gave the agent that opened it, read from Claude Code transcripts.
-- **Terraform plans with changes:** read from the per-workspace plan comments of `dflook/terraform-github-actions`. The list shows `Δ 2 ws`, and the drawer shows one line per changed workspace with add/change/destroy counts (destroy in red). "No changes" plans are skipped.
+- **Terraform plans with changes:** read from the per-workspace plan comments of `dflook/terraform-github-actions`. The list shows `Δ 2 ws`, and the drawer shows one line per changed workspace with add/change/destroy counts, then its changed resources grouped by action (`+` create, `~` update, `-/+` replace, `-` destroy; replace and destroy in red; 8 per workspace, then "+N more"). On the board, `tab` picks the workspace to list. "No changes" plans are skipped.
 - **⚑ untouched today:** PRs that need you and that you have not touched since midnight. PRs waiting on a sibling, on CI or on a scheduled merge are skipped.
 
 It also does a few light actions, all with a confirmation:
@@ -170,7 +170,7 @@ Add the status-line and popup lines from [Install](#tmux-fallback).
 |---|---|
 | `j`/`k`, `↑`/`↓`, wheel | move (click a row to select it) |
 | `enter`/`o`, double-click | open the PR in the browser |
-| `tab`, then `enter` | select a terraform plan line in the drawer, then open that plan comment |
+| `tab`, then `enter` | select a terraform plan workspace in the drawer (lists its changed resources), then open that plan comment |
 | `J`, click the grey key | open the Jira ticket |
 | `w` | full why: purpose, the prompt that created the PR, pair, review |
 | `y` / `Y` | copy link / copy "topic (KEY) · PR · purpose" |

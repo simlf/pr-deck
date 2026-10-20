@@ -121,6 +121,14 @@ type Plan struct {
 	Change    int    `json:"change"`
 	Destroy   int    `json:"destroy"`
 	URL       string `json:"url"`
+	// Resources are the changed addresses, in plan order.
+	Resources []PlanResource `json:"resources,omitempty"`
+}
+
+// PlanResource is one changed resource: Action is +, ~, -/+ or -.
+type PlanResource struct {
+	Action  string `json:"action"`
+	Address string `json:"address"`
 }
 
 // PairRef places a PR in an ordered eng → prod chain.
