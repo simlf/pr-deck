@@ -238,7 +238,7 @@ func (m *Model) why(p model.PR, w int, full bool) []string {
 		if purpose != "" {
 			add(sDim.Render("why ") + fit(purpose, w-4))
 		}
-		add(sDim.Render("next ") + v.Next(p))
+		add(sDim.Render("next ") + m.next(p))
 		return clip(out, w)
 	}
 	if purpose != "" {
@@ -282,7 +282,7 @@ func (m *Model) why(p model.PR, w int, full bool) []string {
 			add("         " + l)
 		}
 	}
-	add(sDim.Render("next ") + v.Next(p))
+	add(sDim.Render("next ") + m.next(p))
 	return clip(out, w)
 }
 

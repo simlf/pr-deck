@@ -535,3 +535,22 @@ func TestPlansAreReadAndCached(t *testing.T) {
 		t.Fatalf("an updated PR re-reads its plans: %d → %d reads", reads, gh.planReads)
 	}
 }
+
+func TestRefreshPRUpdatesCachedCI(t *testing.T) {
+	gh := scenario()
+	d := newDeck(t, gh, tue1102)
+	if _, err := d.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	key := "acme/runbooks#88"
+	p := gh.prs[key]
+	p.CI, p.FailedRuns = model.CIRunning, nil
+	gh.prs[key] = p
+	if _, err := d.RefreshPR(context.Background(), key); err != nil {
+		t.Fatal(err)
+	}
+	s, _ := d.Cached()
+	if got, _ := s.Find(key); got.CI != model.CIRunning || got.Ticket == "" {
+		t.Fatalf("cached PR should get the new CI and keep its enrichment: %+v", got)
+	}
+}

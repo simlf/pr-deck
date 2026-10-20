@@ -111,6 +111,29 @@ func (d *Deck) Refresh(ctx context.Context) (model.Snapshot, error) {
 	return snap, nil
 }
 
+// RefreshPR re-reads key's CI from GitHub and writes it into the cached
+// snapshot, for a quick look without a full refresh.
+func (d *Deck) RefreshPR(ctx context.Context, key string) (model.PR, error) {
+	repo, n, ok := splitKey(key)
+	if !ok {
+		return model.PR{}, fmt.Errorf("bad PR key %q", key)
+	}
+	fresh, err := d.GH.Get(ctx, repo, n)
+	if err != nil {
+		return model.PR{}, err
+	}
+	snap, ok := d.Cached()
+	if !ok {
+		return fresh, nil
+	}
+	for i := range snap.PRs {
+		if snap.PRs[i].Key() == key {
+			snap.PRs[i].CI, snap.PRs[i].FailedRuns = fresh.CI, fresh.FailedRuns
+		}
+	}
+	return fresh, cache.Save(d.SnapshotPath(), snap)
+}
+
 func (d *Deck) enrichBasic(p *model.PR) {
 	p.Ticket = ticket.Extract(d.Cfg.Jira.Projects, p.Branch, p.Title, p.Body)
 	p.Env = pairs.DetectEnv(d.Cfg.Envs, p.Branch, p.Title, p.Labels)

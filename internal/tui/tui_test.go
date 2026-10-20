@@ -372,3 +372,30 @@ func TestPlanMarkAndDrawer(t *testing.T) {
 		t.Fatalf("after the last plan line enter opens the PR again, msg=%q", m.msg)
 	}
 }
+
+func TestRerunShowsRerunningUntilNewRuns(t *testing.T) {
+	m, gh := fixture(t)
+	rerunEvery = 0
+	t.Cleanup(func() { rerunEvery = 5 * time.Second })
+	key := "acme/api-gateway#1042"
+	m.cursor = key
+	done := press(m, "r")()
+	_, next := m.Update(done)
+	if out := plain(m.View()); !strings.Contains(out, "⟳ CI rerun") || !strings.Contains(out, "⟳ CI rerunning") {
+		t.Fatalf("a rerun PR still read as failed must show it is rerunning:\n%s", out)
+	}
+	press(m, "r")
+	if !strings.Contains(m.msg, "already rerunning") {
+		t.Fatalf("r twice must not rerun again, msg=%q", m.msg)
+	}
+	p := gh.prs[key]
+	p.CI = model.CIRunning
+	gh.prs[key] = p
+	run(m, next)
+	if m.rerunning[key] {
+		t.Fatal("the rerunning mark must clear once the new runs appear")
+	}
+	if got, _ := m.view.Snap.Find(key); got.CI != model.CIRunning || !strings.Contains(plain(m.View()), "CI ◌") {
+		t.Fatalf("the PR should now show running CI: %+v", got.CI)
+	}
+}

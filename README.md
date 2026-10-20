@@ -175,7 +175,7 @@ Add the status-line and popup lines from [Install](#tmux-fallback).
 | `w` | full why: purpose, the prompt that created the PR, pair, review |
 | `y` / `Y` | copy link / copy "topic (KEY) · PR · purpose" |
 | `P` | copy a review request (or a nudge) for your review channel |
-| `r` | rerun failed CI jobs |
+| `r` | rerun failed CI jobs; the PR shows `⟳ CI rerun` until GitHub reports the new runs |
 | `m` | merge, with every guard below; on a scheduled PR, cancel the schedule |
 | `p` | pair: pick the PR that must merge first (`u` unpairs) |
 | `f` | reviewed: clear ⚑ until tomorrow |
