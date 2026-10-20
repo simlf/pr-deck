@@ -143,6 +143,7 @@ prd daemon --detach    # refresh, scheduled merges, reminders, herdr tokens (sin
 
 - A startup hook starts the daemon.
 - An agent-status event hook (`prd poke`) refreshes soon after an agent goes idle, which is usually just after `gh pr create`.
+- A tab pane `pr` holds the diff pager that `v` opens (`prd pr <url>` outside herdr).
 - Popup panes `board` and `recall` hold the TUI, and actions `pr-deck: board`, `pr-deck: end-of-day recall` and `pr-deck: why this PR` open them. Bind an action to a key in herdr's config with `type = "plugin_action"`, for example `ctrl+b p` for the board.
 - A **link handler** catches a ctrl/cmd-click on any PR URL in a pane (with `ui.mouse_capture` on) and opens that PR's why in pr-deck instead of the browser.
 - **Sidebar tokens:** each agent's row gets a `pr` token listing the PRs it opened (`①#318● ②#319◇`), matched by herdr's agent session id or working directory. Workspaces get `prdeck` counts, `prwin` merge-window state and `prsched` scheduled merges. Tokens have a TTL, so they disappear if the daemon stops.
@@ -174,6 +175,7 @@ Add the status-line and popup lines from [Install](#tmux-fallback).
 | `enter`/`o`, double-click | open the PR in the browser |
 | `tab`, then `enter` | select a terraform plan workspace in the drawer (lists its changed resources), then open that plan comment |
 | `c` | open the newest human comment; this counts as a look and clears `💬` |
+| `v` | read the PR diff in a pager (a new herdr tab under herdr): `j`/`k`, `n`/`N` next/prev file, `c` sends a `file:line` note to firstmate |
 | `J`, click the grey key | open the Jira ticket |
 | `w` | full why: purpose, the prompt that created the PR, pair, review |
 | `y` / `Y` | copy link / copy "topic (KEY) · PR · purpose" |
@@ -214,6 +216,10 @@ A scheduled merge (◷) behaves as follows:
 - At fire time it re-checks CI, approval, pair order, the window and mergeability on fresh data. If any check fails it skips the merge, keeps the schedule and says why once.
 - The prod half of a pair can only be scheduled once its eng sibling has merged.
 - If the machine was asleep at the opening, it catches up on wake while the window is still open, and otherwise rolls over to the next window with a toast.
+
+### Diff notes to firstmate
+
+`v` opens `prd pr`, a read-only diff pager that shows each line's `file:line`. On a line, `c` asks for a note, and `enter` sends `<PR url> <file>:<line> <text>` to firstmate with `fm-inbox.sh note`. Set `[firstmate] home` and `bin` in the config (see [`docs/config.example.toml`](docs/config.example.toml)); without them, `c` says notes are off. pr-deck never posts these notes to GitHub.
 
 ## Conventions for agents that open PRs
 

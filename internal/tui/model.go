@@ -5,6 +5,8 @@ package tui
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/exec"
 	"regexp"
 	"strings"
 	"time"
@@ -14,6 +16,7 @@ import (
 	"github.com/simlf/pr-deck/internal/daemon"
 	"github.com/simlf/pr-deck/internal/deck"
 	"github.com/simlf/pr-deck/internal/desktop"
+	"github.com/simlf/pr-deck/internal/herdr"
 	"github.com/simlf/pr-deck/internal/model"
 	"github.com/simlf/pr-deck/internal/pairs"
 	"github.com/simlf/pr-deck/internal/window"
@@ -407,6 +410,8 @@ func (m *Model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "l", "right":
 		m.collapsed = map[string]bool{}
+	case "v":
+		return m, m.viewDiff(p)
 	case "w":
 		m.whyOpen = !m.whyOpen
 	case "R":
@@ -651,6 +656,29 @@ func reviewText(topic, key, title, url string) string {
 		text += ": " + t
 	}
 	return text + " " + url
+}
+
+// viewDiff opens `prd pr` on p: in a herdr tab when herdr runs, else in this terminal.
+func (m *Model) viewDiff(p model.PR) tea.Cmd {
+	m.touch(p.Key())
+	if h := m.dk.Cfg.Herdr; h.SocketPath != "" && !h.Disabled {
+		id := os.Getenv("HERDR_PLUGIN_ID")
+		if id == "" {
+			id = "pr-deck"
+		}
+		if err := (&herdr.Client{Socket: h.SocketPath}).OpenPane(id, "pr", map[string]string{"PRD_FOCUS": p.URL}); err != nil {
+			m.setErr(err)
+		} else {
+			m.say("opened the diff of " + p.Ref() + " in a herdr tab")
+		}
+		return nil
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		m.setErr(err)
+		return nil
+	}
+	return tea.ExecProcess(exec.Command(exe, "pr", p.URL), func(err error) tea.Msg { return doneMsg{err: err} })
 }
 
 func (m *Model) rerun(p model.PR) tea.Cmd {

@@ -39,6 +39,14 @@ width = "95%"
 height = "90%"
 command = ["prd", "open", "--layout", "recall"]
 
+# v on a PR opens its diff here; PRD_FOCUS carries the PR URL.
+[[panes]]
+id = "pr"
+title = "pr-deck · diff"
+description = "PR diff pager; c sends a file:line note to firstmate"
+placement = "tab"
+command = ["prd", "pr"]
+
 # Bind these to keys in herdr's config with type = "plugin_action"
 # (for example ctrl+b p for the board).
 [[actions]]

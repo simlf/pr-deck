@@ -406,6 +406,28 @@ func (c *Client) RerunFailed(ctx context.Context, p model.PR) (int, error) {
 	return n, nil
 }
 
+// Diff returns p's unified diff.
+func (c *Client) Diff(ctx context.Context, repo string, number int) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/repos/%s/pulls/%d", c.APIURL, repo, number), nil)
+	if err != nil {
+		return "", err
+	}
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+	req.Header.Set("Accept", "application/vnd.github.diff")
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
+	if resp.StatusCode/100 != 2 {
+		return "", fmt.Errorf("github diff %s#%d: HTTP %d: %s", repo, number, resp.StatusCode, firstLine(string(b), 200))
+	}
+	return string(b), nil
+}
+
 var (
 	planHeaderRe  = regexp.MustCompile(`<!--\s*dflook/terraform-github-actions\s+(\{.*?\})\s*-->`)
 	planPathRe    = regexp.MustCompile(`Terraform plan in __(.+?)__`)

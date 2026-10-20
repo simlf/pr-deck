@@ -9,6 +9,8 @@ KEYS
   tab, enter    pick a terraform plan in the drawer (lists its changed
                 resources), then open its comment
   c             open the newest human comment (💬); this clears the mark
+  v             read the PR diff (a new herdr tab under herdr); there,
+                c on a line sends a file:line note to firstmate
   J             open the Jira ticket (click the grey key in a group header too)
   w             why: purpose, the prompt that created the PR, pair, review
   y / Y         copy the link / copy a summary for chat
