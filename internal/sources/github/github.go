@@ -348,6 +348,8 @@ var (
 	planPathRe    = regexp.MustCompile(`Terraform plan in __(.+?)__`)
 	planSummaryRe = regexp.MustCompile(`(?s)<summary>(.*?)</summary>`)
 	planCountsRe  = regexp.MustCompile(`(\d+) to add, (\d+) to change, (\d+) to destroy`)
+	planResRe     = regexp.MustCompile(`(?m)^\s*# (.+?)(?: \(deposed object \w+\))? (will be created|will be updated in-place|is tainted, so must be replaced|must be replaced|will be replaced|will be destroyed)`)
+	planActions   = map[string]string{"will be created": "+", "will be updated in-place": "~", "will be destroyed": "-"}
 )
 
 // Plans returns p's terraform plan comments that have changes, one per
@@ -412,6 +414,13 @@ func parsePlan(body, url string) (model.Plan, bool) {
 		pl.Add, _ = strconv.Atoi(m[1])
 		pl.Change, _ = strconv.Atoi(m[2])
 		pl.Destroy, _ = strconv.Atoi(m[3])
+	}
+	for _, m := range planResRe.FindAllStringSubmatch(body, -1) {
+		act, ok := planActions[m[2]]
+		if !ok {
+			act = "-/+"
+		}
+		pl.Resources = append(pl.Resources, model.PlanResource{Action: act, Address: m[1]})
 	}
 	return pl, true
 }

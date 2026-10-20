@@ -346,7 +346,9 @@ func TestPlanMarkAndDrawer(t *testing.T) {
 	for i := range m.view.Snap.PRs {
 		if m.view.Snap.PRs[i].Key() == key {
 			m.view.Snap.PRs[i].Plans = []model.Plan{
-				{Workspace: "eng", Add: 1, Destroy: 2, URL: "https://github.example/c/1"},
+				{Workspace: "eng", Add: 1, Destroy: 2, URL: "https://github.example/c/1", Resources: []model.PlanResource{
+					{Action: "-", Address: "aws_s3_bucket.old"}, {Action: "+", Address: `aws_s3_bucket.logs["eu"]`}, {Action: "-/+", Address: "aws_instance.web"},
+				}},
 				{Workspace: "modules/dns", Summary: "Plan generated.", URL: "https://github.example/c/2"},
 			}
 		}
@@ -358,7 +360,22 @@ func TestPlanMarkAndDrawer(t *testing.T) {
 			t.Errorf("missing %q\n%s", want, out)
 		}
 	}
-	press(m, "tab", "tab")
+	if strings.Contains(out, "aws_s3_bucket.old") {
+		t.Errorf("the board drawer lists resources only for the selected workspace\n%s", out)
+	}
+	press(m, "tab")
+	out = plain(m.View())
+	if i, j, k := strings.Index(out, `+   aws_s3_bucket.logs["eu"]`), strings.Index(out, "-/+ aws_instance.web"), strings.Index(out, "-   aws_s3_bucket.old"); i < 0 || !(i < j && j < k) {
+		t.Fatalf("tab should list the workspace's resources grouped by action:\n%s", out)
+	}
+	big := model.Plan{Workspace: "big"}
+	for i := 0; i < 11; i++ {
+		big.Resources = append(big.Resources, model.PlanResource{Action: "+", Address: fmt.Sprintf("r.n%d", i)})
+	}
+	if got := plain(strings.Join(planResources(big, 80), "\n")); !strings.Contains(got, "r.n7") || strings.Contains(got, "r.n8") || !strings.Contains(got, "+3 more") {
+		t.Fatalf("resources must cap at 8:\n%s", got)
+	}
+	press(m, "tab")
 	if !strings.Contains(plain(m.View()), "▸ Δ modules/dns") {
 		t.Fatalf("tab should select the second plan line:\n%s", plain(m.View()))
 	}

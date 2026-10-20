@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -150,8 +152,31 @@ func TestPlansKeepChangedWorkspaces(t *testing.T) {
 		t.Fatalf("plans = %+v", pls)
 	}
 	for i := range want {
-		if pls[i] != want[i] {
+		if !reflect.DeepEqual(pls[i], want[i]) {
 			t.Errorf("plan %d = %+v, want %+v", i, pls[i], want[i])
 		}
+	}
+}
+
+func TestParsePlanResources(t *testing.T) {
+	body, err := os.ReadFile("testdata/plan-production-par.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pl, ok := parsePlan(string(body), "u")
+	if !ok || pl.Workspace != "production-par" || pl.Add != 2 || pl.Destroy != 2 {
+		t.Fatalf("plan = %+v", pl)
+	}
+	want := []model.PlanResource{
+		{Action: "-/+", Address: `module.redis["cache"].ovh_cloud_project_database.this`},
+		{Action: "+", Address: `ovh_cloud_project_database.opensearch_clusters["main"]`},
+		{Action: "~", Address: "ovh_cloud_project_database_user.app"},
+		{Action: "-", Address: "ovh_cloud_project_kube_nodepool.old"},
+		{Action: "-", Address: `ovh_domain_zone_record.lb["api"]`},
+		{Action: "-/+", Address: "ovh_cloud_project_database_ip_restrictions.this"},
+		{Action: "+", Address: "ovh_vrack_cloudproject.vrack"},
+	}
+	if !reflect.DeepEqual(pl.Resources, want) {
+		t.Fatalf("resources =\n%+v\nwant\n%+v", pl.Resources, want)
 	}
 }
