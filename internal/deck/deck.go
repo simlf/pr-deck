@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"sort"
 	"time"
 
@@ -37,13 +38,33 @@ type Deck struct {
 	HTTP  *http.Client
 	Store state.Store
 	Now   func() time.Time
+	// Build stamps the snapshot; a cache written by another build is not reused.
+	Build string
+}
+
+// Build identifies this binary: module version plus VCS revision.
+func Build() string {
+	bi, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "dev"
+	}
+	b := bi.Main.Version
+	for _, s := range bi.Settings {
+		switch {
+		case s.Key == "vcs.revision":
+			b += " " + s.Value
+		case s.Key == "vcs.modified" && s.Value == "true":
+			b += "+dirty"
+		}
+	}
+	return b
 }
 
 // New builds a Deck with real clients from cfg. Missing optional sources
 // (Jira, Slack) are left nil and simply produce less enrichment.
 func New(cfg config.Config) *Deck {
 	httpc := &http.Client{Timeout: 20 * time.Second}
-	d := &Deck{Cfg: cfg, HTTP: httpc, Store: state.Store{Dir: cfg.Deck.StateDir}, Now: time.Now}
+	d := &Deck{Cfg: cfg, HTTP: httpc, Store: state.Store{Dir: cfg.Deck.StateDir}, Now: time.Now, Build: Build()}
 	d.GH = github.New(httpc, cfg.GitHub.APIURL, config.Secret(cfg.GitHub.TokenEnv, cfg.GitHub.TokenCmd), cfg.GitHub.Query)
 	if cfg.Jira.BaseURL != "" {
 		d.Jira = &jira.Client{HTTP: httpc, BaseURL: cfg.Jira.BaseURL, Email: cfg.Jira.Email,
@@ -71,6 +92,10 @@ func (d *Deck) Cached() (model.Snapshot, bool) {
 func (d *Deck) Refresh(ctx context.Context) (model.Snapshot, error) {
 	now := d.Now()
 	prev, _ := d.Cached()
+	if prev.Build != d.Build {
+		prev = model.Snapshot{}
+		_ = os.Remove(d.whyPath())
+	}
 	st, err := d.Store.Load()
 	if err != nil {
 		return model.Snapshot{}, fmt.Errorf("state: %w", err)
@@ -79,7 +104,7 @@ func (d *Deck) Refresh(ctx context.Context) (model.Snapshot, error) {
 	if err != nil {
 		return model.Snapshot{}, err
 	}
-	snap := model.Snapshot{At: now}
+	snap := model.Snapshot{At: now, Build: d.Build}
 	for i := range open {
 		d.enrichBasic(&open[i])
 	}
@@ -196,8 +221,10 @@ func (d *Deck) enrichTickets(ctx context.Context, prs []model.PR, prev model.Sna
 	return dedupe(errs)
 }
 
+func (d *Deck) whyPath() string { return filepath.Join(d.Cfg.Deck.CacheDir, "why.json") }
+
 func (d *Deck) enrichWhy(prs []model.PR) []string {
-	path := filepath.Join(d.Cfg.Deck.CacheDir, "why.json")
+	path := d.whyPath()
 	ix := transcript.Load(path)
 	if _, err := os.Stat(d.Cfg.Why.TranscriptsDir); err == nil {
 		if err := ix.Scan(d.Cfg.Why.TranscriptsDir, d.Cfg.GitHub.WebHost); err != nil {
@@ -252,7 +279,7 @@ func (d *Deck) enrichPlans(ctx context.Context, prs []model.PR, prev model.Snaps
 		if p.Merged() || p.Sibling {
 			continue
 		}
-		if old, ok := prev.Find(p.Key()); ok && old.UpdatedAt.Equal(p.UpdatedAt) && now.Sub(old.PlansChecked) < plansTTL && parsed(old.Plans) {
+		if old, ok := prev.Find(p.Key()); ok && old.UpdatedAt.Equal(p.UpdatedAt) && now.Sub(old.PlansChecked) < plansTTL {
 			p.Plans, p.PlansChecked = old.Plans, old.PlansChecked
 			continue
 		}
@@ -264,17 +291,6 @@ func (d *Deck) enrichPlans(ctx context.Context, prs []model.PR, prev model.Snaps
 		p.Plans, p.PlansChecked = pl, now
 	}
 	return dedupe(errs)
-}
-
-// parsed reports whether every plan with changes lists its resources; plans
-// cached by an older pr-deck do not, so they are read again.
-func parsed(pls []model.Plan) bool {
-	for _, pl := range pls {
-		if pl.Add+pl.Change+pl.Destroy > 0 && len(pl.Resources) == 0 {
-			return false
-		}
-	}
-	return true
 }
 
 func dedupe(in []string) []string {

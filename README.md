@@ -254,7 +254,7 @@ Merge-after: owner/repo#318    # ...or after a PR in another repo
 Local files:
 
 - state: `$XDG_STATE_HOME/pr-deck`, or herdr's plugin state dir. It holds schedules, reviewed marks, aliases, manual pairs and sent reminders.
-- cache: `$XDG_CACHE_HOME/pr-deck`. It holds the snapshot, the why index and holidays.
+- cache: `$XDG_CACHE_HOME/pr-deck`. It holds the snapshot, the why index and holidays. The snapshot records the build that wrote it (`prd version`); a different build drops the snapshot and the why index and fetches everything again.
 
 ## Development
 

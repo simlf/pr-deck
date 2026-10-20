@@ -34,8 +34,6 @@ import (
 	"github.com/simlf/pr-deck/internal/tui"
 )
 
-var version = "dev"
-
 const usage = `prd: pr-deck, your open PRs by topic, merge order and why
 
 usage:
@@ -80,7 +78,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		fmt.Fprint(stdout, usage+"\n"+tui.Guide)
 		return nil
 	case "version":
-		fmt.Fprintln(stdout, "prd", version)
+		fmt.Fprintln(stdout, "prd", deck.Build())
 		return nil
 	}
 	cfg, err := config.Load("")

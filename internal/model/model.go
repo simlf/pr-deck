@@ -157,6 +157,7 @@ type PairRef struct {
 // Snapshot is what the daemon caches and every view renders.
 type Snapshot struct {
 	At     time.Time `json:"at"`
+	Build  string    `json:"build,omitempty"`
 	PRs    []PR      `json:"prs"`
 	Errors []string  `json:"errors,omitempty"`
 }
