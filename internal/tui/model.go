@@ -5,6 +5,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -617,11 +618,25 @@ func (m *Model) summary(p model.PR) string {
 }
 
 func (m *Model) reviewRequest(p model.PR) string {
-	lead := "Review please"
+	text := reviewText(m.view.Topic(p), p.Ticket, p.Title, p.URL)
 	if p.Posted != nil {
-		lead = "Gentle nudge, still needs a review"
+		return "Gentle nudge, still needs a review: " + text
 	}
-	return lead + ": " + m.summary(p)
+	return text
+}
+
+var ccPrefix = regexp.MustCompile(`^[a-z]+(\([^)]*\))?!?:\s*`)
+
+// reviewText reads "topic (KEY): title without its conventional-commit prefix url".
+func reviewText(topic, key, title, url string) string {
+	text := topic
+	if key != "" && topic != key {
+		text += " (" + key + ")"
+	}
+	if t := ccPrefix.ReplaceAllString(title, ""); t != "" && t != topic {
+		text += ": " + t
+	}
+	return text + " " + url
 }
 
 func (m *Model) rerun(p model.PR) tea.Cmd {

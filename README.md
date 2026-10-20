@@ -174,7 +174,7 @@ Add the status-line and popup lines from [Install](#tmux-fallback).
 | `J`, click the grey key | open the Jira ticket |
 | `w` | full why: purpose, the prompt that created the PR, pair, review |
 | `y` / `Y` | copy link / copy "topic (KEY) · PR · purpose" |
-| `P` | post a review request to the review channel after a confirmation; once posted, copy a nudge. Without a Slack token, copy the request |
+| `P` | post a review request ("topic (KEY): title url") to the review channel after a confirmation; once posted, copy a nudge. Without a Slack token, copy the request |
 | `r` | rerun failed CI jobs; the PR shows `⟳ CI rerun` until GitHub reports the new runs |
 | `m` | merge, with every guard below; on a scheduled PR, cancel the schedule |
 | `p` | pair: pick the PR that must merge first (`u` unpairs) |

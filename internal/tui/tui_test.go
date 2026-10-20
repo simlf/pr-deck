@@ -418,7 +418,7 @@ func TestPostReviewRequest(t *testing.T) {
 		t.Fatalf("P must ask before posting: mode=%v plan=%+v", m.mode, m.plan)
 	}
 	run(m, press(m, "y"))
-	if len(fs.posts) != 1 || !strings.HasPrefix(fs.posts[0], "#team-reviews: Review please: AWS provider bump") {
+	if len(fs.posts) != 1 || fs.posts[0] != "#team-reviews: AWS provider bump https://github.example/acme/terraform-modules/pull/203" {
 		t.Fatalf("posts = %v (msg %q)", fs.posts, m.msg)
 	}
 	m.cursor = "acme/runbooks#88"
@@ -426,5 +426,16 @@ func TestPostReviewRequest(t *testing.T) {
 	press(m, "P")
 	if m.mode != modeNormal || len(fs.posts) != 1 || !strings.Contains(m.msg, "already posted") {
 		t.Fatalf("an already posted PR must not be posted again: posts=%v msg=%q", fs.posts, m.msg)
+	}
+}
+
+func TestReviewText(t *testing.T) {
+	url := "https://github.com/Shopopop/infra-shopopop-as-code/pull/2788"
+	got := reviewText("[OVH] Migrate production workloads to the Paris 3AZ region", "OPS-2709", "feat(ops-2709): monitor the Paris production redis cluster", url)
+	if want := "[OVH] Migrate production workloads to the Paris 3AZ region (OPS-2709): monitor the Paris production redis cluster " + url; got != want {
+		t.Fatalf("got  %q\nwant %q", got, want)
+	}
+	if got := reviewText("Bump the AWS provider", "", "fix!: pin aws 5.x", url); got != "Bump the AWS provider: pin aws 5.x "+url {
+		t.Fatalf("no ticket: %q", got)
 	}
 }
