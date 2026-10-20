@@ -447,10 +447,16 @@ func (m *Model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "Y":
 		m.copy(m.summary(p), "copied summary for "+p.Ref(), p.Key())
 	case "P":
-		if p.ReviewDecision == model.ReviewApproved || p.Merged() {
+		switch {
+		case p.ReviewDecision == model.ReviewApproved || p.Merged():
 			m.say(p.Ref() + " is already approved")
-		} else {
+		case m.dk.Slack == nil:
 			m.copy(m.reviewRequest(p), "copied review request for "+m.channel(), p.Key())
+		case p.Posted != nil:
+			m.copy(m.reviewRequest(p), "already posted in "+m.channel()+": copied a nudge instead", p.Key())
+		default:
+			m.plan = deck.Plan{Kind: deck.PlanPost, Target: p, Message: "post a review request for " + p.Ref() + " to " + m.channel() + "?"}
+			m.mode = modeConfirm
 		}
 	case "r":
 		if p.CI != model.CIFail {
@@ -657,6 +663,16 @@ func (m *Model) execute(pl deck.Plan) tea.Cmd {
 		m.recompute()
 		m.say("schedule cancelled for " + t.Ref())
 		return nil
+	case deck.PlanPost:
+		m.busy = "posting to " + m.channel() + "…"
+		return func() tea.Msg {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			if err := m.dk.PostReview(ctx, t, m.reviewRequest(t)); err != nil {
+				return doneMsg{err: err}
+			}
+			return doneMsg{text: "posted review request for " + t.Ref() + " in " + m.channel(), refresh: true}
+		}
 	case deck.PlanMerge, deck.PlanSibling:
 		m.busy = "merging " + t.Ref() + "…"
 		return func() tea.Msg {

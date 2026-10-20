@@ -76,6 +76,8 @@ func (f fakeJira) BrowseURL(k string) string { return "https://jira.example/brow
 
 type fakeSlack map[string]time.Time
 
+func (f fakeSlack) Post(context.Context, string, string) error { return nil }
+
 func (f fakeSlack) FirstPost(_ context.Context, _, url string) (*time.Time, error) {
 	if t, ok := f[url]; ok {
 		return &t, nil
@@ -552,5 +554,41 @@ func TestRefreshPRUpdatesCachedCI(t *testing.T) {
 	s, _ := d.Cached()
 	if got, _ := s.Find(key); got.CI != model.CIRunning || got.Ticket == "" {
 		t.Fatalf("cached PR should get the new CI and keep its enrichment: %+v", got)
+	}
+}
+
+type postingSlack struct {
+	fakeSlack
+	posts []string
+}
+
+func (s *postingSlack) Post(_ context.Context, ch, text string) error {
+	s.posts = append(s.posts, ch+": "+text)
+	return nil
+}
+
+func TestPostReviewOnlyOnce(t *testing.T) {
+	gh := scenario()
+	d := newDeck(t, gh, tue1102)
+	ps := &postingSlack{fakeSlack: d.Slack.(fakeSlack)}
+	d.Slack = ps
+	if _, err := d.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	tf := gh.prs["acme/terraform-modules#203"]
+	if err := d.PostReview(context.Background(), tf, "Review please"); err != nil || len(ps.posts) != 1 {
+		t.Fatalf("post: %v %v", ps.posts, err)
+	}
+	s, _ := d.Cached()
+	if p, _ := s.Find(tf.Key()); p.Posted == nil {
+		t.Fatal("the post must be recorded in the cached snapshot")
+	}
+	rb := gh.prs["acme/runbooks#88"]
+	if err := d.PostReview(context.Background(), rb, "Review please"); err == nil || !strings.Contains(err.Error(), "already posted") || len(ps.posts) != 1 {
+		t.Fatalf("an already posted PR must be refused: %v %v", ps.posts, err)
+	}
+	d.Slack = nil
+	if err := d.PostReview(context.Background(), tf, "x"); err == nil {
+		t.Fatal("posting without Slack must fail clearly")
 	}
 }

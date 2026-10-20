@@ -337,7 +337,7 @@ func (m *Model) help(w int) string {
 		{"J", "open the Jira ticket (click the grey key in a group header too)"},
 		{"w", "why: full purpose, the prompt that created the PR, pair, review"},
 		{"y / Y", "copy link / copy \"topic (KEY) · PR · purpose\" for chat"},
-		{"P", "copy a review request (or nudge) for " + m.channel()},
+		{"P", "post a review request to " + m.channel() + " after a confirmation; once posted, copy a nudge (copies the request without a Slack token)"},
 		{"r", "rerun failed CI jobs"},
 		{"m", "merge: pair order first, then CI, review and prod windows; outside a window it offers a schedule; on a scheduled PR it cancels"},
 		{"p", "pair: mark which PR must merge first (u unpairs)"},

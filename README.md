@@ -15,7 +15,7 @@ It also does a few light actions, all with a confirmation:
 
 - open in the browser
 - copy the link or a chat summary
-- copy a review request
+- post a review request to the review channel (refused once it is posted)
 - rerun failed CI
 - merge in the right order, inside prod merge windows, or **scheduled** for the next window
 
@@ -25,7 +25,7 @@ It also does a few light actions, all with a confirmation:
 
 - **Go 1.24 or newer** (`go.mod` declares `go 1.24.0`).
 - **GitHub access.** The simplest setup is the GitHub CLI, logged in with `gh auth login`: pr-deck runs `gh auth token` when neither `GITHUB_TOKEN` nor `GH_TOKEN` is set.
-- **Optional:** a Jira API token (`JIRA_API_TOKEN`) for ticket topics, and a Slack user token with `search:read` (`SLACK_TOKEN`) for review tracking. Without them, pr-deck runs on GitHub alone.
+- **Optional:** a Jira API token (`JIRA_API_TOKEN`) for ticket topics, and a Slack user token with `search:read` and `chat:write` (`SLACK_TOKEN`) for review tracking and posting review requests. Without them, pr-deck runs on GitHub alone.
 
 ### Get the binary
 
@@ -79,7 +79,7 @@ Tokens are never read from the config file:
 |---|---|---|
 | GitHub | `token_env` (default `GITHUB_TOKEN`, `GH_TOKEN`) or `token_cmd` (default `gh auth token`) | repo read, merge, actions rerun |
 | Jira | `jira.token_env` (default `JIRA_API_TOKEN`) or `jira.token_cmd` | read issues |
-| Slack | `review.token_env` (default `SLACK_TOKEN`) or `review.token_cmd` | user token with `search:read`. pr-deck only searches and never posts |
+| Slack | `review.token_env` (default `SLACK_TOKEN`) or `review.token_cmd` | user token with `search:read` (posted marks) and `chat:write` (`P` posts the review request). Without `chat:write`, `P` says the scope is missing |
 
 Run `prd doctor` again after editing the config.
 
@@ -174,7 +174,7 @@ Add the status-line and popup lines from [Install](#tmux-fallback).
 | `J`, click the grey key | open the Jira ticket |
 | `w` | full why: purpose, the prompt that created the PR, pair, review |
 | `y` / `Y` | copy link / copy "topic (KEY) · PR · purpose" |
-| `P` | copy a review request (or a nudge) for your review channel |
+| `P` | post a review request to the review channel after a confirmation; once posted, copy a nudge. Without a Slack token, copy the request |
 | `r` | rerun failed CI jobs; the PR shows `⟳ CI rerun` until GitHub reports the new runs |
 | `m` | merge, with every guard below; on a scheduled PR, cancel the schedule |
 | `p` | pair: pick the PR that must merge first (`u` unpairs) |
@@ -219,7 +219,7 @@ Merge-after: owner/repo#318    # ...or after a PR in another repo
 
 - **GitHub GraphQL:** `author:@me is:open` plus `github.query`. It provides CI rollup, review decision, reviewers, labels, mergeability and last commit. Merge and rerun use the same API, and the PR comments give the terraform plans.
 - **Jira REST:** the summary and status for each ticket key found in the branch, title or body.
-- **Slack `search.messages`:** the first post of each PR URL in `review.channel`.
+- **Slack `search.messages`:** the first post of each PR URL in `review.channel`. `P` posts with `chat.postMessage` after it checks the PR is not posted yet.
 - **Claude Code transcripts** (`~/.claude/projects/*/*.jsonl`): the user prompt before the `gh pr create` that printed the PR URL. The index is incremental and cached.
 - **Team `.ics` feed:** holidays, fetched at most daily and cached.
 
