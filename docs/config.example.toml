@@ -32,7 +32,8 @@ short_len = 22                         # max length of the short topic form (t r
 channel = "#team-reviews"              # where review requests are posted; "" turns tracking off
 remind_after = "5h"                    # posted, still no review → ◔ overdue + one toast
 token_env = "SLACK_TOKEN"              # user token with search:read and chat:write (P posts review requests)
-# token_cmd = ["security", "find-generic-password", "-s", "pr-deck-slack", "-w"]
+# token_cmd defaults (macOS) to the Keychain item `prd slack login` writes:
+# token_cmd = ["security", "find-generic-password", "-s", "pr-deck", "-a", "slack", "-w"]
 skip_drafts = true
 
 [merge_windows]

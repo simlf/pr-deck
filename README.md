@@ -81,9 +81,17 @@ Tokens are never read from the config file:
 |---|---|---|
 | GitHub | `token_env` (default `GITHUB_TOKEN`, `GH_TOKEN`) or `token_cmd` (default `gh auth token`) | repo read, merge, actions rerun |
 | Jira | `jira.token_env` (default `JIRA_API_TOKEN`) or `jira.token_cmd` | read issues |
-| Slack | `review.token_env` (default `SLACK_TOKEN`) or `review.token_cmd` | user token with `search:read` (posted marks) and `chat:write` (`P` posts the review request). Without `chat:write`, `P` says the scope is missing |
+| Slack | `review.token_env` (default `SLACK_TOKEN`) or `review.token_cmd` (default on macOS: the Keychain item from `prd slack login`) | user token with `search:read` (posted marks) and `chat:write` (`P` posts the review request). Without `chat:write`, `P` says the scope is missing |
 
 Run `prd doctor` again after editing the config.
+
+#### Slack token in 1 minute
+
+Slack accepts only HTTPS redirect URLs, so there is no browser login with a local callback. Instead:
+
+1. Open <https://api.slack.com/apps>, then **Create New App → From a manifest**, pick your workspace and paste [`docs/slack-app-manifest.yml`](docs/slack-app-manifest.yml) (user scopes `search:read` and `chat:write`, no bot).
+2. **Install to Workspace**, then copy the **User OAuth Token** (`xoxp-…`) from **OAuth & Permissions**.
+3. Run `prd slack login` and paste the token. It checks the token and its scopes with `auth.test`, then stores it in the macOS Keychain. `SLACK_TOKEN` still wins when set. `pbpaste | prd slack login --token` skips the steps.
 
 ### herdr plugin
 

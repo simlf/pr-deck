@@ -54,6 +54,7 @@ usage:
   prd refresh                 refresh the cache once and print a summary
   prd doctor                  check configuration and credentials (never prints tokens)
   prd tutorial                keys, marks and typical flows (also ? in the TUI)
+  prd slack login [--token]   save a Slack user token in the macOS Keychain (pasted on stdin)
   prd version
 
 config: $PRD_CONFIG or ~/.config/pr-deck/config.toml (see docs/config.example.toml)
@@ -158,6 +159,8 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return runRefresh(cfg, stdout)
 	case "doctor":
 		return runDoctor(cfg, stdout)
+	case "slack":
+		return runSlack(cfg, args, stdout)
 	}
 	fmt.Fprint(stderr, usage)
 	return fmt.Errorf("unknown command %q", cmd)

@@ -1,0 +1,14 @@
+# Slack app for pr-deck: a user token only, no bot.
+# api.slack.com/apps -> Create New App -> From a manifest -> paste this file.
+display_information:
+  name: pr-deck
+  description: Tracks and posts your PR review requests as you
+oauth_config:
+  scopes:
+    user:
+      - search:read
+      - chat:write
+settings:
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false

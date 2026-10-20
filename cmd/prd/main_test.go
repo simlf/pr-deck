@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -12,6 +14,7 @@ import (
 	"github.com/BurntSushi/toml"
 
 	"github.com/simlf/pr-deck/internal/cache"
+	"github.com/simlf/pr-deck/internal/config"
 	"github.com/simlf/pr-deck/internal/model"
 )
 
@@ -156,5 +159,39 @@ func TestTutorialPrintsTheGuide(t *testing.T) {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("tutorial misses %q", want)
 		}
+	}
+}
+
+func TestSlackLoginSavesAVerifiedToken(t *testing.T) {
+	scopes := "search:read,chat:write"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/auth.test" || r.Header.Get("Authorization") != "Bearer xoxp-1-abc" {
+			w.Write([]byte(`{"ok":false,"error":"invalid_auth"}`))
+			return
+		}
+		w.Header().Set("X-OAuth-Scopes", scopes)
+		w.Write([]byte(`{"ok":true,"user":"dana","team":"acme"}`))
+	}))
+	defer srv.Close()
+	cfg := config.Default()
+	cfg.Review.APIURL = srv.URL
+	var saved []string
+	keychainSave = func(tok string) error { saved = append(saved, tok); return nil }
+	login := func(in string) (string, error) {
+		stdin = strings.NewReader(in)
+		var out bytes.Buffer
+		err := runSlack(cfg, []string{"login"}, &out)
+		return out.String(), err
+	}
+	out, err := login("xoxp-1-abc\n")
+	if err != nil || len(saved) != 1 || saved[0] != "xoxp-1-abc" || !strings.Contains(out, "slack-app-manifest.yml") || !strings.Contains(out, "dana (acme)") {
+		t.Fatalf("login: err=%v saved=%v out=%q", err, saved, out)
+	}
+	if _, err := login("hello\n"); err == nil {
+		t.Fatal("a non-token must be refused")
+	}
+	scopes = "search:read"
+	if _, err := login("xoxp-1-abc\n"); err == nil || !strings.Contains(err.Error(), "chat:write") || len(saved) != 1 {
+		t.Fatalf("a token without chat:write must not be saved: %v", err)
 	}
 }
