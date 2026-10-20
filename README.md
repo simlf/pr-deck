@@ -4,7 +4,7 @@ Terminal overlay to see work in progress: open PRs grouped by the topic (Jira ti
 
 `prd` shows your open GitHub PRs:
 
-- **Grouped by topic, not by key.** A group reads "Allow bigger uploads (ingress 25 MB)", with `ABC-412` small and grey after it. Topics come from the Jira summary, and `t` renames the short form used in tight spots.
+- **Grouped by topic, not by key.** A group reads "Allow bigger uploads (ingress 25 MB)", with `ABC-412` small and grey after it. Topics come from the Jira summary, and `t` renames the short form used in tight spots. A PR with no ticket is grouped under its `Purpose:` line (a `Merge-after:` chain under the first PR's), with a grey `no ticket` tag; PRs with neither land in the last "No ticket" group.
 - **Eng → prod chains in merge order.** `┌①` and `└②` connect the two halves of a pair, and the prod half shows `◇ waits ①` until eng merges.
 - **Review state on every PR:** ✓ approved, ✎ changes requested, ◌ posted, ◔ overdue (posted in the review channel and still unreviewed after 5h), ○ not posted.
 - **Why the PR exists:** the `Purpose:` line from the PR body plus the exact prompt you gave the agent that opened it, read from Claude Code transcripts.

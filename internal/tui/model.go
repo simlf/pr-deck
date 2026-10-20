@@ -355,11 +355,7 @@ func (m *Model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.move(-10)
 	case "h", "left":
 		if have && m.layout == Board {
-			id := p.Ticket
-			if id == "" {
-				id = "~none"
-			}
-			m.collapsed[id] = true
+			m.collapsed[m.view.GroupKey(p)] = true
 			m.ensureCursor()
 		}
 	case "l", "right":
@@ -458,7 +454,7 @@ func (m *Model) textKey(k tea.KeyMsg) tea.Cmd {
 			if val == short {
 				val = ""
 			}
-			_ = m.dk.SetAlias(deck.AliasKey(p), val)
+			_ = m.dk.SetAlias(m.view.AliasKey(p), val)
 			m.recompute()
 			m.say("topic short form saved: " + m.view.TopicShort(p))
 		}

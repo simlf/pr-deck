@@ -142,7 +142,7 @@ func TestBoardTopicsFirst(t *testing.T) {
 		"✎ changes",
 		"◔ 6d, no review",
 		"○ not posted",
-		"▾ No ticket",
+		"▾ AWS provider bump no ticket",
 		"⊘ prod window Fri–Sun closed · opens Mon 26 Oct 09:30",
 	} {
 		if !strings.Contains(out, want) {
@@ -291,5 +291,47 @@ func TestNarrowWidthStillRenders(t *testing.T) {
 		if w := len([]rune(l)); w > 80 {
 			t.Errorf("line too wide (%d): %q", w, l)
 		}
+	}
+}
+
+func TestPurposeGroups(t *testing.T) {
+	m, gh := fixture(t)
+	add := func(p model.PR) {
+		p.State, p.Mergeable, p.CI, p.LastCommitAt = "OPEN", "MERGEABLE", model.CIPass, now
+		m.view.Snap.PRs = append(m.view.Snap.PRs, p)
+		gh.prs[p.Key()] = p
+	}
+	add(model.PR{Repo: "acme/infra-live", Number: 7, Purpose: "aws provider bump  ", ReviewDecision: model.ReviewRequired})
+	add(model.PR{Repo: "acme/dns", Number: 1, Purpose: "Move the MX records."})
+	add(model.PR{Repo: "acme/dns", Number: 2, Purpose: "Then drop the old ones.", Body: "Merge-after: #1"})
+	add(model.PR{Repo: "acme/misc", Number: 5, Title: "chore: tidy"})
+	m.recompute()
+	gs := m.groups()
+	byTopic := map[string]group{}
+	for _, g := range gs {
+		byTopic[g.topic] = g
+	}
+	if g := byTopic["AWS provider bump"]; len(g.prs) != 2 {
+		t.Errorf("same Purpose should share a group: %+v", g.prs)
+	}
+	if g := byTopic["Move the MX records."]; len(g.prs) != 2 {
+		t.Errorf("a Merge-after chain stays in its first PR's Purpose group: %+v", g.prs)
+	}
+	if last := gs[len(gs)-1]; last.topic != "No ticket" || len(last.prs) != 1 {
+		t.Errorf("No ticket group must come last with the PR without a Purpose: %+v", last)
+	}
+	if !strings.Contains(plain(m.View()), "▾ Move the MX records. no ticket") {
+		t.Errorf("purpose header missing:\n%s", plain(m.View()))
+	}
+	m.cursor = "acme/dns#2"
+	press(m, "t")
+	m.input = []rune("MX")
+	press(m, "enter")
+	if p, _ := m.view.Snap.Find("acme/dns#1"); m.view.TopicShort(p) != "MX" {
+		t.Errorf("t alias should cover the whole Purpose group, got %q", m.view.TopicShort(p))
+	}
+	p, _ := m.view.Snap.Find("acme/infra-live#7")
+	if out := plain(strings.Join(m.why(p, 120, false), "\n")); strings.Contains(out, "why ") {
+		t.Errorf("drawer repeats the Purpose already in the topic line:\n%s", out)
 	}
 }
