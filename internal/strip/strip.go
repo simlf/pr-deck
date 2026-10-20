@@ -145,6 +145,9 @@ func Line2(v deck.View, cwd, format string) string {
 			}
 		}
 	}
+	if c.Commented > 0 {
+		return p("magenta", fmt.Sprintf("💬 %d PRs with new comments", c.Commented)) + p("brightblack", " · prd recall")
+	}
 	if c.Flagged > 0 {
 		return p("yellow", fmt.Sprintf("⚑ %d PRs untouched today", c.Flagged)) + p("brightblack", " · prd recall")
 	}

@@ -231,6 +231,16 @@ func (m *Model) why(p model.PR, w int, full bool) []string {
 			out = append(out, planResources(pl, w)...)
 		}
 	}
+	if cs := v.NewComments(p); len(cs) > 0 {
+		add(sMagenta.Render(fmt.Sprintf("💬 %d new", len(cs))) + sDim.Render(" · c opens the newest"))
+		for _, c := range cs[:min(3, len(cs))] {
+			where := ""
+			if c.Path != "" {
+				where = fmt.Sprintf(" %s:%d", c.Path, c.Line)
+			}
+			add("  " + sBold.Render("@"+c.Author) + sDim.Render(where) + " " + fit(c.Body, max(1, w-6-runewidthOf(c.Author+where))))
+		}
+	}
 	purpose := p.Purpose
 	if purpose == topic {
 		purpose = ""
@@ -360,6 +370,7 @@ func (m *Model) help(w int) string {
 		{"j/k ↑/↓", "move · g/G top/bottom · wheel scrolls"},
 		{"enter / o", "open the PR in the browser (double-click a row too)"},
 		{"tab", "step through the PR's terraform plans with changes; enter opens the selected plan"},
+		{"c", "open the newest human comment (💬) since your last push or action; opening it clears the mark"},
 		{"J", "open the Jira ticket (click the grey key in a group header too)"},
 		{"w", "why: full purpose, the prompt that created the PR, pair, review"},
 		{"y / Y", "copy link / copy \"topic (KEY) · PR · purpose\" for chat"},
@@ -379,7 +390,7 @@ func (m *Model) help(w int) string {
 	for _, r := range rows {
 		b.WriteString(sBold.Render(fit(r[0], 12)) + " " + fit(r[1], w-14) + "\n")
 	}
-	b.WriteString("\n" + sDim.Render("glyphs: ● ready  Δ terraform plans with changes  ✓ merged  ○ review  ✗ CI/conflict  ◌ running  ◇ waits on sibling  ◦ draft  ◷ scheduled  ⚑ untouched today  ▲ production label"))
+	b.WriteString("\n" + sDim.Render("glyphs: ● ready  Δ terraform plans with changes  ✓ merged  ○ review  ✗ CI/conflict  ◌ running  ◇ waits on sibling  ◦ draft  ◷ scheduled  ⚑ untouched today  💬 new human comments  ▲ production label"))
 	b.WriteString("\n" + sDim.Render("review: ✓ approved  ✎ changes  ◌ posted/waiting  ◔ overdue  ○ not posted") + "\n\n" + sDim.Render("any key closes"))
 	return b.String()
 }

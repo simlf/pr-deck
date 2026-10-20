@@ -9,6 +9,7 @@ Terminal overlay to see work in progress: open PRs grouped by the topic (Jira ti
 - **Review state on every PR:** ✓ approved, ✎ changes requested, ◌ posted, ◔ overdue (posted in the review channel and still unreviewed after 5h), ○ not posted.
 - **Why the PR exists:** the `Purpose:` line from the PR body plus the exact prompt you gave the agent that opened it, read from Claude Code transcripts.
 - **Terraform plans with changes:** read from the per-workspace plan comments of `dflook/terraform-github-actions`. The list shows `Δ 2 ws`, and the drawer shows one line per changed workspace with add/change/destroy counts, then its changed resources grouped by action (`+` create, `~` update, `-/+` replace, `-` destroy; replace and destroy in red; 8 per workspace, then "+N more"). On the board, `tab` picks the workspace to list. "No changes" plans are skipped.
+- **💬 new human comments:** comments, inline review comments and reviews (changes requested, or a comment with text) by someone other than you since your last push or your last pr-deck action on the PR. Bots (`*[bot]`, GitHub Apps) and `github.ignore_commenters` (default `github-actions`, `claude-review`, `renovate`) never count. The list shows `💬 N` and sorts the PR first in recall; the drawer shows the 3 newest (author, `file:line` when inline, first line).
 - **⚑ untouched today:** PRs that need you and that you have not touched since midnight. PRs waiting on a sibling, on CI or on a scheduled merge are skipped.
 
 It also does a few light actions, all with a confirmation:
@@ -171,6 +172,7 @@ Add the status-line and popup lines from [Install](#tmux-fallback).
 | `j`/`k`, `↑`/`↓`, wheel | move (click a row to select it) |
 | `enter`/`o`, double-click | open the PR in the browser |
 | `tab`, then `enter` | select a terraform plan workspace in the drawer (lists its changed resources), then open that plan comment |
+| `c` | open the newest human comment; this counts as a look and clears `💬` |
 | `J`, click the grey key | open the Jira ticket |
 | `w` | full why: purpose, the prompt that created the PR, pair, review |
 | `y` / `Y` | copy link / copy "topic (KEY) · PR · purpose" |
@@ -217,7 +219,7 @@ Merge-after: owner/repo#318    # ...or after a PR in another repo
 
 ## Where the data comes from
 
-- **GitHub GraphQL:** `author:@me is:open` plus `github.query`. It provides CI rollup, review decision, reviewers, labels, mergeability and last commit. Merge and rerun use the same API, and the PR comments give the terraform plans.
+- **GitHub GraphQL:** `author:@me is:open` plus `github.query`. It provides CI rollup, review decision, reviewers, the last 20 comments and reviews, labels, mergeability and last commit. Merge and rerun use the same API, and the PR comments give the terraform plans.
 - **Jira REST:** the summary and status for each ticket key found in the branch, title or body.
 - **Slack `search.messages`:** the first post of each PR URL in `review.channel`. `P` posts with `chat.postMessage` after it checks the PR is not posted yet.
 - **Claude Code transcripts** (`~/.claude/projects/*/*.jsonl`): the user prompt before the `gh pr create` that printed the PR URL. The index is incremental and cached.

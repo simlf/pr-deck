@@ -86,7 +86,7 @@ func (m *Model) groups() []group {
 		best := 99
 		for _, p := range g.prs {
 			r := stateRank[v.StateOf(p)]
-			if v.Flagged(p) {
+			if v.Flagged(p) || len(v.NewComments(p)) > 0 {
 				r -= 10
 			}
 			if r < best {
@@ -155,7 +155,7 @@ func (m *Model) recallRows() []model.PR {
 		best, oldest := 99, time.Now()
 		for _, p := range u {
 			r := stateRank[v.StateOf(p)]
-			if v.Flagged(p) {
+			if v.Flagged(p) || len(v.NewComments(p)) > 0 {
 				r -= 10
 			}
 			if r < best {
@@ -284,9 +284,13 @@ func planMark(p model.PR) (string, int) {
 	return st.Render(t), runewidth.StringWidth(t)
 }
 
-// nextCell is the next action, after the plan mark when there is one.
+// nextCell is the next action, after the comment and plan marks when there are any.
 func (m *Model) nextCell(p model.PR, st lipgloss.Style, w int) string {
 	mark, mw := planMark(p)
+	if n := len(m.view.NewComments(p)); n > 0 {
+		t := fmt.Sprintf("💬 %d ", n)
+		mark, mw = sMagenta.Render(t)+mark, mw+runewidth.StringWidth(t)
+	}
 	return mark + cell(st, m.next(p), max(1, w-mw))
 }
 

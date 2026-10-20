@@ -456,3 +456,43 @@ func TestReviewText(t *testing.T) {
 		t.Fatalf("no ticket: %q", got)
 	}
 }
+
+func TestNewHumanComments(t *testing.T) {
+	m, _ := fixture(t)
+	m.dk.Cfg.Deck.OpenCmd = []string{"true"}
+	m.dk.Cfg.GitHub.IgnoreCommenters = append(m.dk.Cfg.GitHub.IgnoreCommenters, "shop-ops")
+	m.recompute()
+	key := "acme/runbooks#88"
+	for i := range m.view.Snap.PRs {
+		if m.view.Snap.PRs[i].Key() == key {
+			m.view.Snap.PRs[i].Comments = []model.Comment{
+				{Author: "lee", Body: "lower burst to 20", Path: "main.tf", Line: 12, URL: "https://github.example/c/9", At: now.Add(-time.Hour)},
+				{Author: "shop-ops", Body: "deployed", URL: "https://github.example/c/8", At: now.Add(-2 * time.Hour)},
+				{Author: "renovate[bot]", Body: "rebased deps", URL: "https://github.example/c/7", At: now.Add(-2 * time.Hour)},
+				{Author: "dana", Body: "old one", URL: "https://github.example/c/6", At: now.Add(-72 * time.Hour)},
+			}
+		}
+	}
+	m.cursor = key
+	out := plain(m.View())
+	for _, want := range []string{"💬 1 ", "💬 1 new", "@lee main.tf:12 lower burst to 20"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q\n%s", want, out)
+		}
+	}
+	for _, not := range []string{"deployed", "rebased deps", "old one"} {
+		if strings.Contains(out, not) {
+			t.Errorf("%q is a bot or older than the last push\n%s", not, out)
+		}
+	}
+	if c := m.view.Count(); c.Commented != 1 {
+		t.Fatalf("commented = %d", c.Commented)
+	}
+	press(m, "c")
+	if !strings.Contains(m.msg, "https://github.example/c/9") {
+		t.Fatalf("c should open the newest comment, msg=%q", m.msg)
+	}
+	if strings.Contains(plain(m.View()), "💬") {
+		t.Fatal("opening the comment is a look: the mark must clear")
+	}
+}

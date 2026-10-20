@@ -116,6 +116,30 @@ func (v View) Touched(p model.PR) time.Time {
 	return t
 }
 
+// NewComments are p's human comments since the last push or pr-deck action, newest first.
+func (v View) NewComments(p model.PR) []model.Comment {
+	var out []model.Comment
+	since := v.Touched(p)
+	for _, c := range p.Comments {
+		if c.At.After(since) && !v.bot(c.Author) {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+func (v View) bot(login string) bool {
+	if strings.HasSuffix(login, "[bot]") {
+		return true
+	}
+	for _, x := range v.Cfg.GitHub.IgnoreCommenters {
+		if strings.EqualFold(x, login) {
+			return true
+		}
+	}
+	return false
+}
+
 // Flagged is the "untouched today" ⚑: p needs the user, can move, and was
 // not touched since local midnight. PRs waiting on a sibling, on running CI
 // or on a scheduled merge cannot move, so they are skipped.
@@ -268,7 +292,7 @@ func OrderMark(p model.PR) string { return orderMark(p) }
 
 // Counts summarises the snapshot for the strip and workspace tokens.
 type Counts struct {
-	Open, Ready, Fail, Waiting, Review, Flagged, Scheduled int
+	Open, Ready, Fail, Waiting, Review, Flagged, Scheduled, Commented int
 }
 
 // Count computes Counts over non-sibling PRs.
@@ -294,6 +318,9 @@ func (v View) Count() Counts {
 		}
 		if v.Flagged(p) {
 			c.Flagged++
+		}
+		if len(v.NewComments(p)) > 0 {
+			c.Commented++
 		}
 	}
 	return c
