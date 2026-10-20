@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/simlf/pr-deck/internal/cache"
 	"github.com/simlf/pr-deck/internal/config"
 	"github.com/simlf/pr-deck/internal/model"
 	"github.com/simlf/pr-deck/internal/sources/jira"
@@ -537,19 +536,16 @@ func TestPlansAreReadAndCached(t *testing.T) {
 	if gh.planReads != reads+1 {
 		t.Fatalf("an updated PR re-reads its plans: %d → %d reads", reads, gh.planReads)
 	}
-	gh.plans[key] = []model.Plan{{Workspace: "eng", Add: 1}}
-	snap, _ := d.Cached()
-	for i := range snap.PRs {
-		if snap.PRs[i].Key() == key {
-			snap.PRs[i].Plans[0].Resources = nil
-		}
-	}
-	if err := cache.Save(d.SnapshotPath(), snap); err != nil {
+	if err := os.WriteFile(d.whyPath(), []byte("{}"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	d.Refresh(context.Background())
-	if gh.planReads != reads+2 {
-		t.Fatalf("plans cached without resources (older pr-deck) are read again: %d → %d reads", reads, gh.planReads)
+	d.Build = "v2"
+	s, _ = d.Refresh(context.Background())
+	if gh.planReads != 2*reads+1 || s.Build != "v2" {
+		t.Fatalf("a cache from another build is refetched: %d → %d reads, build %q", reads, gh.planReads, s.Build)
+	}
+	if _, err := os.Stat(d.whyPath()); !os.IsNotExist(err) {
+		t.Fatalf("the why index of another build is dropped: %v", err)
 	}
 }
 
