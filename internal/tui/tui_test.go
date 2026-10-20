@@ -496,3 +496,22 @@ func TestNewHumanComments(t *testing.T) {
 		t.Fatal("opening the comment is a look: the mark must clear")
 	}
 }
+
+func TestHelpShowsTheGuideAndScrolls(t *testing.T) {
+	m, _ := fixture(t)
+	m.height = 20
+	press(m, "?")
+	if out := plain(m.View()); !strings.Contains(out, "pr-deck guide") || strings.Contains(out, "FLOWS") {
+		t.Fatalf("? shows the top of the guide:\n%s", out)
+	}
+	for i := 0; i < 60; i++ {
+		press(m, "j")
+	}
+	if out := plain(m.View()); !strings.Contains(out, "prd tutorial") || m.mode != modeHelp {
+		t.Fatalf("j scrolls to the end of the guide:\n%s", out)
+	}
+	press(m, "x")
+	if m.mode != modeNormal {
+		t.Fatal("any other key closes the guide")
+	}
+}

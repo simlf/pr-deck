@@ -22,7 +22,7 @@ func (m *Model) View() string {
 		h = 12
 	}
 	if m.mode == modeHelp {
-		return m.help(w)
+		return m.help(w, h)
 	}
 	header := m.header(w)
 	footer := m.footer(w)
@@ -365,32 +365,14 @@ func (m *Model) chain(p model.PR) (string, string) {
 	return strings.Join(parts, sDim.Render(" → ")), sDim.Render(" · " + src)
 }
 
-func (m *Model) help(w int) string {
-	rows := [][2]string{
-		{"j/k ↑/↓", "move · g/G top/bottom · wheel scrolls"},
-		{"enter / o", "open the PR in the browser (double-click a row too)"},
-		{"tab", "step through the PR's terraform plans with changes; enter opens the selected plan"},
-		{"c", "open the newest human comment (💬) since your last push or action; opening it clears the mark"},
-		{"J", "open the Jira ticket (click the grey key in a group header too)"},
-		{"w", "why: full purpose, the prompt that created the PR, pair, review"},
-		{"y / Y", "copy link / copy \"topic (KEY) · PR · purpose\" for chat"},
-		{"P", "post a review request to " + m.channel() + " after a confirmation; once posted, copy a nudge (copies the request without a Slack token)"},
-		{"r", "rerun failed CI jobs"},
-		{"m", "merge: pair order first, then CI, review and prod windows; outside a window it offers a schedule; on a scheduled PR it cancels"},
-		{"p", "pair: mark which PR must merge first (u unpairs)"},
-		{"f", "reviewed: clear the ⚑ untouched-today flag until tomorrow"},
-		{"t", "rename the topic's short form"},
-		{"R / s", "switch board ↔ recall / cycle recall sort"},
-		{"h / l", "fold / unfold topic groups (click a header too)"},
-		{"/", "filter by topic, repo, ticket or title"},
-		{"ctrl+r", "refresh now · q / esc quit"},
+func (m *Model) help(w, h int) string {
+	ls := strings.Split(strings.TrimRight(Guide, "\n"), "\n")
+	m.helpOff = max(0, min(m.helpOff, len(ls)-h+1))
+	ls = ls[m.helpOff:]
+	ls[0] = sCyan.Bold(true).Render(ls[0])
+	ls = append(ls[:min(len(ls), h-1)], sDim.Render("j/k scroll · any other key closes"))
+	for i, l := range ls[1 : len(ls)-1] {
+		ls[i+1] = fit(l, w)
 	}
-	var b strings.Builder
-	b.WriteString(sCyan.Bold(true).Render("pr-deck keys") + "\n\n")
-	for _, r := range rows {
-		b.WriteString(sBold.Render(fit(r[0], 12)) + " " + fit(r[1], w-14) + "\n")
-	}
-	b.WriteString("\n" + sDim.Render("glyphs: ● ready  Δ terraform plans with changes  ✓ merged  ○ review  ✗ CI/conflict  ◌ running  ◇ waits on sibling  ◦ draft  ◷ scheduled  ⚑ untouched today  💬 new human comments  ▲ production label"))
-	b.WriteString("\n" + sDim.Render("review: ✓ approved  ✎ changes  ◌ posted/waiting  ◔ overdue  ○ not posted") + "\n\n" + sDim.Render("any key closes"))
-	return b.String()
+	return strings.Join(ls, "\n")
 }
