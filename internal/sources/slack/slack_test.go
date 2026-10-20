@@ -2,6 +2,7 @@ package slack
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -48,5 +49,30 @@ func TestNotPostedAndErrors(t *testing.T) {
 	}
 	if _, err := (&Client{}).FirstPost(context.Background(), "c", "u"); err == nil {
 		t.Fatal("want missing-token error")
+	}
+}
+
+func TestPostAndMissingScope(t *testing.T) {
+	var got map[string]string
+	scope := true
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/chat.postMessage" || r.Method != http.MethodPost {
+			t.Errorf("request = %s %s", r.Method, r.URL.Path)
+		}
+		if !scope {
+			w.Write([]byte(`{"ok":false,"error":"missing_scope","needed":"chat:write","provided":"search:read"}`))
+			return
+		}
+		json.NewDecoder(r.Body).Decode(&got)
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	defer srv.Close()
+	c := &Client{HTTP: srv.Client(), APIURL: srv.URL, Token: "x"}
+	if err := c.Post(context.Background(), "#team-reviews", "Review please"); err != nil || got["channel"] != "team-reviews" || got["text"] != "Review please" {
+		t.Fatalf("post: %v %v", got, err)
+	}
+	scope = false
+	if err := c.Post(context.Background(), "#team-reviews", "x"); err == nil || !strings.Contains(err.Error(), "lacks the chat:write scope") {
+		t.Fatalf("missing scope must say so: %v", err)
 	}
 }

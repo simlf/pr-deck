@@ -234,7 +234,7 @@ func (v View) Next(p model.PR) string {
 		case review.Changes:
 			return "address review: " + ri.Short
 		case review.NotPosted:
-			return "post for review · P copy request"
+			return "post for review · P request"
 		case review.Overdue:
 			return "nudge reviewers · P copy nudge"
 		}

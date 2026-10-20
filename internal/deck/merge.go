@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/simlf/pr-deck/internal/cache"
 	"github.com/simlf/pr-deck/internal/model"
+	"github.com/simlf/pr-deck/internal/review"
 	"github.com/simlf/pr-deck/internal/state"
 	"github.com/simlf/pr-deck/internal/window"
 )
@@ -17,6 +19,7 @@ const (
 	PlanSibling  = "sibling"  // confirm, then merge the earlier sibling (Target)
 	PlanSchedule = "schedule" // confirm, then schedule Target at At
 	PlanCancel   = "cancel"   // confirm, then cancel Target's schedule
+	PlanPost     = "post"     // confirm, then post Target's review request
 )
 
 // Plan is the outcome of the merge guards for one PR.
@@ -207,4 +210,33 @@ func (d *Deck) SetPair(key, afterKey string) error {
 		return nil
 	})
 	return err
+}
+
+// PostReview posts text to the review channel unless a fresh search finds
+// p already posted there, then records the post in the cached snapshot.
+func (d *Deck) PostReview(ctx context.Context, p model.PR, text string) error {
+	ch := d.Cfg.Review.Channel
+	if d.Slack == nil {
+		return fmt.Errorf("posting needs review.channel and a Slack token")
+	}
+	at, err := d.Slack.FirstPost(ctx, ch, p.URL)
+	if err != nil {
+		return err
+	}
+	if at != nil {
+		return fmt.Errorf("%s is already posted in %s (%s ago)", p.Ref(), ch, review.Age(d.Now().Sub(*at)))
+	}
+	if err := d.Slack.Post(ctx, ch, text); err != nil {
+		return err
+	}
+	now := d.Now()
+	if snap, ok := d.Cached(); ok {
+		for i := range snap.PRs {
+			if snap.PRs[i].Key() == p.Key() {
+				snap.PRs[i].Posted, snap.PRs[i].PostedKnown, snap.PRs[i].PostedChecked = &now, true, now
+			}
+		}
+		_ = cache.Save(d.SnapshotPath(), snap)
+	}
+	return d.Touch(p.Key())
 }

@@ -30,7 +30,7 @@ short_len = 22                         # max length of the short topic form (t r
 [review]
 channel = "#team-reviews"              # where review requests are posted; "" turns tracking off
 remind_after = "5h"                    # posted, still no review → ◔ overdue + one toast
-token_env = "SLACK_TOKEN"              # user token with search:read (read-only: pr-deck never posts)
+token_env = "SLACK_TOKEN"              # user token with search:read and chat:write (P posts review requests)
 # token_cmd = ["security", "find-generic-password", "-s", "pr-deck-slack", "-w"]
 skip_drafts = true
 
