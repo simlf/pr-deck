@@ -433,9 +433,38 @@ var (
 	planPathRe    = regexp.MustCompile(`Terraform plan in __(.+?)__`)
 	planSummaryRe = regexp.MustCompile(`(?s)<summary>(.*?)</summary>`)
 	planCountsRe  = regexp.MustCompile(`(\d+) to add, (\d+) to change, (\d+) to destroy`)
-	planResRe     = regexp.MustCompile(`(?m)^\s*# (.+?)(?: \(deposed object \w+\))? (will be created|will be updated in-place|is tainted, so must be replaced|must be replaced|will be replaced|will be destroyed)`)
+	planResRe     = regexp.MustCompile(`^\s*# (.+?)(?: \(deposed object \w+\))? (will be created|will be updated in-place|is tainted, so must be replaced|must be replaced|will be replaced|will be destroyed)`)
 	planActions   = map[string]string{"will be created": "+", "will be updated in-place": "~", "will be destroyed": "-"}
+	// An attribute or block changed in place: "!~ name = old -> new" (diff format) or "~ name = ..." (hcl).
+	planAttrRe     = regexp.MustCompile(`^(?:!~|\s*~)\s+([\w.-]+|"[^"]*")\s*(=.*|\{)$`)
+	planSecretRe   = regexp.MustCompile(`(?i)password|secret|token|private_key|credential`)
+	planChangesMax = 4
 )
+
+// attrChange reads one changed attribute as "name: old -> new", masking secrets.
+func attrChange(name, rest string) string {
+	v := strings.TrimSpace(strings.TrimPrefix(rest, "="))
+	switch {
+	case strings.Contains(v, "(sensitive") || planSecretRe.MatchString(name):
+		v = "(sensitive)"
+	case v == "{" || v == "[" || strings.HasSuffix(v, "= [") || v == "":
+		v = "changed"
+	default:
+		if o, n, ok := strings.Cut(v, " -> "); ok {
+			v = clip(o, 40) + " -> " + clip(n, 40)
+		} else {
+			v = clip(v, 80)
+		}
+	}
+	return name + ": " + v
+}
+
+func clip(s string, n int) string {
+	if r := []rune(s); len(r) > n {
+		return string(r[:n-1]) + "…"
+	}
+	return s
+}
 
 // Plans returns p's terraform plan comments that have changes, one per
 // workspace (the latest comment wins).
@@ -500,12 +529,25 @@ func parsePlan(body, url string) (model.Plan, bool) {
 		pl.Change, _ = strconv.Atoi(m[2])
 		pl.Destroy, _ = strconv.Atoi(m[3])
 	}
-	for _, m := range planResRe.FindAllStringSubmatch(body, -1) {
-		act, ok := planActions[m[2]]
-		if !ok {
-			act = "-/+"
+	var cur *model.PlanResource
+	for _, ln := range strings.Split(body, "\n") {
+		if m := planResRe.FindStringSubmatch(ln); m != nil {
+			act, ok := planActions[m[2]]
+			if !ok {
+				act = "-/+"
+			}
+			pl.Resources = append(pl.Resources, model.PlanResource{Action: act, Address: m[1]})
+			cur = &pl.Resources[len(pl.Resources)-1]
+			continue
 		}
-		pl.Resources = append(pl.Resources, model.PlanResource{Action: act, Address: m[1]})
+		if strings.HasPrefix(ln, "Plan: ") {
+			cur = nil
+		}
+		if cur != nil && cur.Action != "+" && len(cur.Changes) < planChangesMax {
+			if m := planAttrRe.FindStringSubmatch(ln); m != nil {
+				cur.Changes = append(cur.Changes, attrChange(m[1], m[2]))
+			}
+		}
 	}
 	return pl, true
 }

@@ -168,13 +168,36 @@ func TestParsePlanResources(t *testing.T) {
 		t.Fatalf("plan = %+v", pl)
 	}
 	want := []model.PlanResource{
-		{Action: "-/+", Address: `module.redis["cache"].ovh_cloud_project_database.this`},
+		{Action: "-/+", Address: `module.redis["cache"].ovh_cloud_project_database.this`, Changes: []string{`flavor: "db1-4" -> "db1-7" # forces replacement`}},
 		{Action: "+", Address: `ovh_cloud_project_database.opensearch_clusters["main"]`},
-		{Action: "~", Address: "ovh_cloud_project_database_user.app"},
+		{Action: "~", Address: "ovh_cloud_project_database_user.app", Changes: []string{"roles: changed"}},
 		{Action: "-", Address: "ovh_cloud_project_kube_nodepool.old"},
 		{Action: "-", Address: `ovh_domain_zone_record.lb["api"]`},
 		{Action: "-/+", Address: "ovh_cloud_project_database_ip_restrictions.this"},
 		{Action: "+", Address: "ovh_vrack_cloudproject.vrack"},
+	}
+	if !reflect.DeepEqual(pl.Resources, want) {
+		t.Fatalf("resources =\n%+v\nwant\n%+v", pl.Resources, want)
+	}
+}
+
+func TestParsePlanDiffFormat(t *testing.T) {
+	body, err := os.ReadFile("testdata/plan-diff-v3.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pl, ok := parsePlan(string(body), "u")
+	if !ok || pl.Workspace != "engineering-sbg5" || pl.Add != 1 || pl.Change != 3 {
+		t.Fatalf("plan = %+v", pl)
+	}
+	want := []model.PlanResource{
+		{Action: "~", Address: "cloudflare_access_application.monitoring", Changes: []string{
+			`name: "[TF] APM Monitoring" -> "[TF] Kibana Monitoring"`, "policies: changed", "include: changed", "ip: changed"}},
+		{Action: "~", Address: "cloudflare_record.monitoring_cname", Changes: []string{
+			"proxied: false -> true", `modified_on: "2026-06-11T15:49:52Z" -> (known after apply)`}},
+		{Action: "~", Address: `module.save_users["alice"].vault_kv_secret_v2.ovh_user`, Changes: []string{
+			"data_json: (sensitive)", "api_token: (sensitive)"}},
+		{Action: "+", Address: `module.object_storage["mobile-qa-builds"].aws_s3_bucket.bucket`},
 	}
 	if !reflect.DeepEqual(pl.Resources, want) {
 		t.Fatalf("resources =\n%+v\nwant\n%+v", pl.Resources, want)

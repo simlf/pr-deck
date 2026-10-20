@@ -351,7 +351,7 @@ func TestPlanMarkAndDrawer(t *testing.T) {
 		if m.view.Snap.PRs[i].Key() == key {
 			m.view.Snap.PRs[i].Plans = []model.Plan{
 				{Workspace: "eng", Add: 1, Destroy: 2, URL: "https://github.example/c/1", Resources: []model.PlanResource{
-					{Action: "-", Address: "aws_s3_bucket.old"}, {Action: "+", Address: `aws_s3_bucket.logs["eu"]`}, {Action: "-/+", Address: "aws_instance.web"},
+					{Action: "-", Address: "aws_s3_bucket.old"}, {Action: "+", Address: `aws_s3_bucket.logs["eu"]`}, {Action: "-/+", Address: "aws_instance.web", Changes: []string{"ami: a -> b", "tags: changed", "type: t3 -> t4", "x: 1 -> 2"}},
 				}},
 				{Workspace: "modules/dns", Summary: "Plan generated.", URL: "https://github.example/c/2"},
 			}
@@ -371,6 +371,9 @@ func TestPlanMarkAndDrawer(t *testing.T) {
 	out = plain(m.View())
 	if i, j, k := strings.Index(out, `+   aws_s3_bucket.logs["eu"]`), strings.Index(out, "-/+ aws_instance.web"), strings.Index(out, "-   aws_s3_bucket.old"); i < 0 || !(i < j && j < k) {
 		t.Fatalf("tab should list the workspace's resources grouped by action:\n%s", out)
+	}
+	if !strings.Contains(out, "ami: a -> b") || !strings.Contains(out, "type: t3 -> t4") || strings.Contains(out, "x: 1 -> 2") {
+		t.Fatalf("changed attributes show under their resource, 3 at most:\n%s", out)
 	}
 	big := model.Plan{Workspace: "big"}
 	for i := 0; i < 11; i++ {

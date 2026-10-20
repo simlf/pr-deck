@@ -131,6 +131,8 @@ type Plan struct {
 type PlanResource struct {
 	Action  string `json:"action"`
 	Address string `json:"address"`
+	// Changes are a few in-place attribute changes, "name: old -> new".
+	Changes []string `json:"changes,omitempty"`
 }
 
 // Comment is one issue comment, inline review comment or review.

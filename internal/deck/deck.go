@@ -252,7 +252,7 @@ func (d *Deck) enrichPlans(ctx context.Context, prs []model.PR, prev model.Snaps
 		if p.Merged() || p.Sibling {
 			continue
 		}
-		if old, ok := prev.Find(p.Key()); ok && old.UpdatedAt.Equal(p.UpdatedAt) && now.Sub(old.PlansChecked) < plansTTL {
+		if old, ok := prev.Find(p.Key()); ok && old.UpdatedAt.Equal(p.UpdatedAt) && now.Sub(old.PlansChecked) < plansTTL && parsed(old.Plans) {
 			p.Plans, p.PlansChecked = old.Plans, old.PlansChecked
 			continue
 		}
@@ -264,6 +264,17 @@ func (d *Deck) enrichPlans(ctx context.Context, prs []model.PR, prev model.Snaps
 		p.Plans, p.PlansChecked = pl, now
 	}
 	return dedupe(errs)
+}
+
+// parsed reports whether every plan with changes lists its resources; plans
+// cached by an older pr-deck do not, so they are read again.
+func parsed(pls []model.Plan) bool {
+	for _, pl := range pls {
+		if pl.Add+pl.Change+pl.Destroy > 0 && len(pl.Resources) == 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func dedupe(in []string) []string {
