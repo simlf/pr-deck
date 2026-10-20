@@ -9,11 +9,13 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -25,6 +27,8 @@ import (
 	"github.com/simlf/pr-deck/internal/deck"
 	"github.com/simlf/pr-deck/internal/herdr"
 	"github.com/simlf/pr-deck/internal/pairs"
+	"github.com/simlf/pr-deck/internal/prview"
+	"github.com/simlf/pr-deck/internal/sources/github"
 	"github.com/simlf/pr-deck/internal/sources/jira"
 	"github.com/simlf/pr-deck/internal/strip"
 	"github.com/simlf/pr-deck/internal/tui"
@@ -45,6 +49,8 @@ usage:
   prd poke                    ask the running daemon to refresh soon
   prd herdr-open <pane> [--focus-from-context]
                               open a pr-deck pane in herdr (used by plugin actions)
+  prd pr [URL]                PR diff pager; c sends a file:line note to firstmate
+                              (URL defaults to $PRD_FOCUS; herdr opens it in a tab)
   prd refresh                 refresh the cache once and print a summary
   prd doctor                  check configuration and credentials (never prints tokens)
   prd tutorial                keys, marks and typical flows (also ? in the TUI)
@@ -142,6 +148,12 @@ func run(args []string, stdout, stderr io.Writer) error {
 			id = "pr-deck"
 		}
 		return (&herdr.Client{Socket: cfg.Herdr.SocketPath}).OpenPane(id, pane, env)
+	case "pr":
+		u := os.Getenv("PRD_FOCUS")
+		if len(args) > 0 {
+			u = args[0]
+		}
+		return runPR(cfg, strings.TrimSpace(u))
 	case "refresh":
 		return runRefresh(cfg, stdout)
 	case "doctor":
@@ -155,6 +167,29 @@ func runTUI(cfg config.Config, opt tui.Options) error {
 	m := tui.New(deck.New(cfg), opt)
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	_, err := p.Run()
+	return err
+}
+
+var prURLRe = regexp.MustCompile(`/([^/]+/[^/]+)/pull/(\d+)`)
+
+func runPR(cfg config.Config, url string) error {
+	m := prURLRe.FindStringSubmatch(url)
+	if m == nil {
+		return fmt.Errorf("prd pr needs a PR URL, got %q", url)
+	}
+	n, _ := strconv.Atoi(m[2])
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	gh := github.New(&http.Client{Timeout: 30 * time.Second}, cfg.GitHub.APIURL, config.Secret(cfg.GitHub.TokenEnv, cfg.GitHub.TokenCmd), "")
+	diff, err := gh.Diff(ctx, m[1], n)
+	if err != nil {
+		return err
+	}
+	var send func(string) error
+	if cfg.Firstmate.Home != "" && cfg.Firstmate.Bin != "" {
+		send = func(text string) error { return prview.Note(cfg.Firstmate, text) }
+	}
+	_, err = tea.NewProgram(prview.New(url, diff, send), tea.WithAltScreen()).Run()
 	return err
 }
 

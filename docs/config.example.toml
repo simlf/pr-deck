@@ -66,3 +66,10 @@ refresh = "60s"
 stale_warn = "10m"
 # open_cmd = ["open"]
 # copy_cmd = ["pbcopy"]
+
+# Notes from the diff pager (v, then c on a line) go to firstmate's captain
+# inbox: $bin/fm-inbox.sh note -- "<PR url> <file>:<line> <text>" with FM_HOME=home.
+# Leave unset to turn notes off. pr-deck never posts these to GitHub.
+[firstmate]
+# home = "~/code/firstmate"
+# bin = "~/code/firstmate/bin"

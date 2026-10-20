@@ -106,7 +106,7 @@ func TestHerdrManifest(t *testing.T) {
 	if _, err := toml.DecodeFile("../../herdr-plugin.toml", &m); err != nil {
 		t.Fatal(err)
 	}
-	known := map[string]bool{"board": true, "recall": true, "open": true, "daemon": true, "poke": true, "herdr-open": true, "strip": true}
+	known := map[string]bool{"board": true, "recall": true, "open": true, "daemon": true, "poke": true, "herdr-open": true, "strip": true, "pr": true}
 	check := func(cmd []string) {
 		if len(cmd) < 2 || cmd[0] != "prd" || !known[cmd[1]] {
 			t.Errorf("manifest command %v does not match a prd subcommand", cmd)
@@ -116,7 +116,7 @@ func TestHerdrManifest(t *testing.T) {
 	for _, p := range m.Panes {
 		panes[p.ID] = true
 		check(p.Command)
-		if p.Placement != "popup" {
+		if p.Placement != "popup" && p.Placement != "tab" {
 			t.Errorf("pane %s placement %q", p.ID, p.Placement)
 		}
 	}

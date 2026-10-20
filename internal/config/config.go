@@ -27,6 +27,7 @@ type Config struct {
 	Why          Why          `toml:"why"`
 	Herdr        Herdr        `toml:"herdr"`
 	Deck         Deck         `toml:"deck"`
+	Firstmate    Firstmate    `toml:"firstmate"`
 
 	// ProductionLabel marks PRs whose plan changes production (▲).
 	ProductionLabel string `toml:"production_label"`
@@ -101,6 +102,12 @@ type Herdr struct {
 	RecallAt   string   `toml:"recall_at"` // "17:30" daily nudge; empty disables
 	Disabled   bool     `toml:"disabled"`
 	Notify     []string `toml:"notify_cmd"` // non-herdr toast command; {title} {body}
+}
+
+// Firstmate is where diff notes go; empty Home or Bin turns notes off.
+type Firstmate struct {
+	Home string `toml:"home"` // FM_HOME for fm-inbox.sh
+	Bin  string `toml:"bin"`  // directory holding fm-inbox.sh
 }
 
 // Deck holds general behaviour.
@@ -256,6 +263,8 @@ func (c Config) finish() Config {
 	c.Why.TranscriptsDir = expand(c.Why.TranscriptsDir, home)
 	c.Deck.StateDir = expand(c.Deck.StateDir, home)
 	c.Deck.CacheDir = expand(c.Deck.CacheDir, home)
+	c.Firstmate.Home = expand(c.Firstmate.Home, home)
+	c.Firstmate.Bin = expand(c.Firstmate.Bin, home)
 	return c
 }
 

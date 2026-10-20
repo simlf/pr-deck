@@ -1,8 +1,12 @@
 package tui
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
+	"net"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -513,5 +517,43 @@ func TestHelpShowsTheGuideAndScrolls(t *testing.T) {
 	press(m, "x")
 	if m.mode != modeNormal {
 		t.Fatal("any other key closes the guide")
+	}
+}
+
+func TestViewDiffOpensAHerdrTab(t *testing.T) {
+	m, _ := fixture(t)
+	sock := filepath.Join(t.TempDir(), "h.sock")
+	ln, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	got := make(chan map[string]any, 1)
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		var req map[string]any
+		sc := bufio.NewScanner(conn)
+		sc.Scan()
+		json.Unmarshal(sc.Bytes(), &req)
+		got <- req
+		fmt.Fprintf(conn, "{\"id\":%q,\"result\":{}}\n", req["id"])
+	}()
+	m.dk.Cfg.Herdr.SocketPath = sock
+	m.cursor = "acme/runbooks#88"
+	if cmd := press(m, "v"); cmd != nil {
+		t.Fatal("under herdr, v opens a tab, not a subprocess")
+	}
+	req := <-got
+	params, _ := req["params"].(map[string]any)
+	env, _ := params["env"].(map[string]any)
+	if req["method"] != "plugin.pane.open" || params["entrypoint"] != "pr" || env["PRD_FOCUS"] != "https://github.example/acme/runbooks/pull/88" {
+		t.Fatalf("herdr request = %v", req)
+	}
+	if !strings.Contains(m.msg, "herdr tab") {
+		t.Fatalf("msg = %q", m.msg)
 	}
 }
