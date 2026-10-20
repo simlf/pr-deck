@@ -51,5 +51,6 @@ FLOWS
 MORE
   prd doctor     check the config and the tokens
   prd tutorial   print this guide
+  prd slack login  save the Slack token (steps in the README)
   README         https://github.com/simlf/pr-deck#readme
 `

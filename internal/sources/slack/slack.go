@@ -136,3 +136,30 @@ func nonEmpty(s, d string) string {
 	}
 	return s
 }
+
+// AuthTest checks the token and returns its user, team and granted scopes.
+func (c *Client) AuthTest(ctx context.Context) (user, team, scopes string, err error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(c.APIURL, "/")+"/auth.test", nil)
+	if err != nil {
+		return "", "", "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return "", "", "", err
+	}
+	defer resp.Body.Close()
+	var body struct {
+		OK    bool   `json:"ok"`
+		Error string `json:"error"`
+		User  string `json:"user"`
+		Team  string `json:"team"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return "", "", "", err
+	}
+	if !body.OK {
+		return "", "", "", fmt.Errorf("slack auth.test: %s", body.Error)
+	}
+	return body.User, body.Team, resp.Header.Get("X-OAuth-Scopes"), nil
+}

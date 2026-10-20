@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -164,6 +165,7 @@ func Default() Config {
 		Review: Review{
 			RemindAfter: Duration{5 * time.Hour},
 			TokenEnv:    "SLACK_TOKEN",
+			TokenCmd:    keychainCmd(),
 			APIURL:      "https://slack.com/api",
 			SkipDrafts:  true,
 		},
@@ -312,6 +314,19 @@ func (c Config) CriticalSelectors() []string {
 		}
 	}
 	return out
+}
+
+// Where `prd slack login` keeps the Slack token in the macOS Keychain.
+const (
+	KeychainService = "pr-deck"
+	KeychainAccount = "slack"
+)
+
+func keychainCmd() []string {
+	if runtime.GOOS != "darwin" {
+		return nil
+	}
+	return []string{"security", "find-generic-password", "-s", KeychainService, "-a", KeychainAccount, "-w"}
 }
 
 // Secret resolves a token: first non-empty env var, else the command's
