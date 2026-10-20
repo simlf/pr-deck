@@ -62,7 +62,7 @@ func (c *Client) graphqlURL() string {
 
 const prFields = `
 fragment pr on PullRequest {
-  id number title url body headRefName isDraft state mergeable reviewDecision createdAt updatedAt
+  id number title url body headRefName isDraft state mergeable mergeStateStatus reviewDecision createdAt updatedAt
   author { login }
   repository { nameWithOwner }
   labels(first: 20) { nodes { name } }
@@ -97,6 +97,7 @@ type gqlPR struct {
 	IsDraft        bool                                    `json:"isDraft"`
 	State          string                                  `json:"state"`
 	Mergeable      string                                  `json:"mergeable"`
+	MergeState     string                                  `json:"mergeStateStatus"`
 	ReviewDecision string                                  `json:"reviewDecision"`
 	CreatedAt      time.Time                               `json:"createdAt"`
 	UpdatedAt      time.Time                               `json:"updatedAt"`
@@ -136,7 +137,7 @@ func (g gqlPR) toModel() model.PR {
 	p := model.PR{
 		Repo: g.Repository.NameWithOwner, Number: g.Number, Title: g.Title, URL: g.URL, Body: g.Body,
 		Branch: g.HeadRefName, Draft: g.IsDraft, State: g.State, Mergeable: g.Mergeable,
-		ReviewDecision: g.ReviewDecision, CreatedAt: g.CreatedAt, UpdatedAt: g.UpdatedAt, CI: model.CINone,
+		MergeState: g.MergeState, ReviewDecision: g.ReviewDecision, CreatedAt: g.CreatedAt, UpdatedAt: g.UpdatedAt, CI: model.CINone,
 	}
 	if g.Author != nil {
 		p.Author = g.Author.Login
