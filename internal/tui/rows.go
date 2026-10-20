@@ -22,7 +22,7 @@ type line struct {
 }
 
 type group struct {
-	id     string // ticket key, or "~" + PR key for no-ticket PRs grouped together
+	id     string // deck.View.GroupKey
 	ticket string
 	topic  string
 	status string
@@ -48,8 +48,8 @@ func (m *Model) visible(p model.PR) bool {
 	return false
 }
 
-// groups builds the board's topic groups: one per ticket, plus a single
-// "No ticket" group.
+// groups builds the board's topic groups: one per ticket, one per Purpose of
+// ticketless PRs, plus a single "No ticket" group.
 func (m *Model) groups() []group {
 	v := m.view
 	byID := map[string]*group{}
@@ -58,16 +58,16 @@ func (m *Model) groups() []group {
 		if !m.visible(p) {
 			continue
 		}
-		id := p.Ticket
-		if id == "" {
-			id = "~none"
-		}
+		id := v.GroupKey(p)
 		g, ok := byID[id]
 		if !ok {
 			g = &group{id: id, ticket: p.Ticket, status: p.TicketStatus}
-			if p.Ticket == "" {
+			switch {
+			case id == deck.NoGroup:
 				g.topic = "No ticket"
-			} else {
+			case p.Ticket == "":
+				g.topic = v.GroupPurpose(p)
+			default:
 				g.topic = v.Topic(p)
 			}
 			byID[id] = g
@@ -95,8 +95,8 @@ func (m *Model) groups() []group {
 		return best
 	}
 	sort.SliceStable(out, func(i, j int) bool {
-		if (out[i].ticket == "") != (out[j].ticket == "") {
-			return out[j].ticket == "" // "No ticket" last
+		if (out[i].id == deck.NoGroup) != (out[j].id == deck.NoGroup) {
+			return out[j].id == deck.NoGroup
 		}
 		ui, uj := urgency(out[i]), urgency(out[j])
 		if ui != uj {
@@ -315,14 +315,18 @@ func (m *Model) boardLines(width int) []line {
 			if g.status != "" {
 				keyPart += " · " + g.status
 			}
+		} else if g.id != deck.NoGroup {
+			keyPart = "no ticket"
 		}
 		maxTopic := width - 4 - runewidth.StringWidth(keyPart) - 2
 		t := fit(topic, min(maxTopic, runewidth.StringWidth(topic)))
 		text := sDim.Render(fold+" ") + sTopic.Render(t)
 		jx := [2]int{}
 		if keyPart != "" {
-			start := 2 + runewidth.StringWidth(t) + 1
-			jx = [2]int{start, start + len(g.ticket)}
+			if g.ticket != "" {
+				start := 2 + runewidth.StringWidth(t) + 1
+				jx = [2]int{start, start + len(g.ticket)}
+			}
 			text += " " + sDim.Render(keyPart)
 		}
 		if m.collapsed[g.id] {

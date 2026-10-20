@@ -220,8 +220,11 @@ func (m *Model) why(p model.PR, w int, full bool) []string {
 	} else {
 		add(meta)
 	}
+	purpose := p.Purpose
+	if purpose == topic {
+		purpose = ""
+	}
 	if !full {
-		purpose := p.Purpose
 		if purpose == "" && p.Why != nil {
 			purpose = "you asked: \"" + p.Why.Prompt + "\""
 		}
@@ -231,8 +234,8 @@ func (m *Model) why(p model.PR, w int, full bool) []string {
 		add(sDim.Render("next ") + v.Next(p))
 		return clip(out, w)
 	}
-	if p.Purpose != "" {
-		for i, l := range wrap("Purpose: "+p.Purpose, w) {
+	if purpose != "" {
+		for i, l := range wrap("Purpose: "+purpose, w) {
 			if i == 0 {
 				l = sDim.Render("Purpose:") + strings.TrimPrefix(l, "Purpose:")
 			}

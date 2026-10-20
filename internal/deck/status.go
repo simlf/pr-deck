@@ -157,17 +157,46 @@ func (v View) Topic(p model.PR) string {
 // TopicShort is the compact topic: the user's alias (t key) for the ticket
 // or PR, else the first words of Topic.
 func (v View) TopicShort(p model.PR) string {
-	alias := v.State.Aliases[p.Ticket]
-	if p.Ticket == "" {
-		alias = v.State.Aliases[p.Key()]
-	}
-	return ticket.Short(v.Topic(p), alias, v.Cfg.Jira.ShortLen)
+	return ticket.Short(v.Topic(p), v.State.Aliases[v.AliasKey(p)], v.Cfg.Jira.ShortLen)
 }
 
-// AliasKey is where a topic alias for p is stored.
-func AliasKey(p model.PR) string {
+// NoGroup is the group key of PRs with neither a ticket nor a Purpose.
+const NoGroup = "~none"
+
+// GroupPurpose is the Purpose that groups a ticketless PR: the one of the
+// first PR of its Merge-after chain, else its own.
+func (v View) GroupPurpose(p model.PR) string {
+	if p.Pair != nil {
+		best, purpose := 0, ""
+		for _, x := range v.Snap.PRs {
+			if x.Pair != nil && x.Pair.ID == p.Pair.ID && x.Purpose != "" && (purpose == "" || x.Pair.Order < best) {
+				best, purpose = x.Pair.Order, x.Purpose
+			}
+		}
+		if purpose != "" {
+			return purpose
+		}
+	}
+	return p.Purpose
+}
+
+// GroupKey is the board group of p: its ticket, else its group Purpose
+// (trimmed, case-insensitive), else NoGroup.
+func (v View) GroupKey(p model.PR) string {
 	if p.Ticket != "" {
 		return p.Ticket
+	}
+	if pur := strings.TrimSpace(v.GroupPurpose(p)); pur != "" {
+		return "~p:" + strings.ToLower(pur)
+	}
+	return NoGroup
+}
+
+// AliasKey is where a topic alias for p is stored: its group, or the PR
+// itself when it has no group.
+func (v View) AliasKey(p model.PR) string {
+	if k := v.GroupKey(p); k != NoGroup {
+		return k
 	}
 	return p.Key()
 }
