@@ -485,7 +485,12 @@ func TestFilterPurposeAliasAndSnooze(t *testing.T) {
 		}
 	}
 	m.filter = ""
+	m.dk.Cfg.Deck.RepoIcons = map[string]string{"GW": "\ue69a"}
+	m.recompute()
 	out := plain(m.View())
+	if !strings.Contains(out, "\ue69a  GW#1042") || !strings.Contains(out, "   runbooks#88") {
+		t.Errorf("rows need the repo icon, or a blank of the same width:\n%s", out)
+	}
 	if !strings.Contains(out, "GW#1042") || !strings.Contains(out, "Write the rotation steps down.") {
 		t.Errorf("rows need the repo alias and the purpose:\n%s", out)
 	}

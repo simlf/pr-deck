@@ -121,6 +121,8 @@ type Deck struct {
 	StaleWarn Duration `toml:"stale_warn"`
 	// RepoAliases maps a short display name to a repo name: ISAC = "infra-as-code".
 	RepoAliases map[string]string `toml:"repo_aliases"`
+	// RepoIcons maps an alias or repo name to a glyph shown before it on the rows.
+	RepoIcons map[string]string `toml:"repo_icons"`
 }
 
 // Duration wraps time.Duration for TOML strings like "5h".

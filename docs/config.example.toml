@@ -69,6 +69,10 @@ stale_warn = "10m"
 # copy_cmd = ["pbcopy"]
 # Short repo names on the rows (display and / filter only): alias = "repo name".
 # repo_aliases = { INFRA = "infrastructure-as-code", APPS = "applications-config" }
+# Nerd Font glyph before the repo on the rows, keyed by alias or repo name.
+# Rows with no icon get a blank of the same width. Examples:
+# nf-md-terraform, nf-fa-cloud (Cloudflare), nf-oct-package (app), nf-fa-github.
+# repo_icons = { INFRA = "\U000F1062", EDGE = "\uf0c2", APPS = "\uf487", GH = "\uf09b" }
 
 # Notes from the diff pager (v, then c on a line) go to firstmate's captain
 # inbox: $bin/fm-inbox.sh note -- "<PR url> <file>:<line> <text>" with FM_HOME=home.

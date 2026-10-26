@@ -319,7 +319,7 @@ func (m *Model) flagMark(p model.PR) string {
 }
 
 func (m *Model) refText(p model.PR) (string, bool) {
-	return m.view.Ref(p), m.view.Production(p)
+	return m.view.Icon(p) + m.view.Ref(p), m.view.Production(p)
 }
 
 func (m *Model) renderRef(p model.PR, w int, selected bool) string {

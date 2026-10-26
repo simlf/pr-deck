@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mattn/go-runewidth"
+
 	"github.com/simlf/pr-deck/internal/config"
 	"github.com/simlf/pr-deck/internal/model"
 	"github.com/simlf/pr-deck/internal/review"
@@ -201,6 +203,22 @@ func (v View) Ref(p model.PR) string {
 		name = best
 	}
 	return fmt.Sprintf("%s#%d", name, p.Number)
+}
+
+// Icon is the deck.repo_icons glyph for p's alias, repo name or full repo,
+// padded to one cell plus a space; blank when icons are set but not for p.
+func (v View) Icon(p model.PR) string {
+	icons := v.Cfg.Deck.RepoIcons
+	if len(icons) == 0 {
+		return ""
+	}
+	ref := v.Ref(p)
+	for _, k := range []string{ref[:strings.LastIndex(ref, "#")], p.RepoName(), p.Repo} {
+		if g, ok := icons[k]; ok {
+			return runewidth.FillRight(runewidth.Truncate(g, 2, ""), 2) + " "
+		}
+	}
+	return "   "
 }
 
 // Snoozed reports whether the user hid p for now (z).
