@@ -79,10 +79,13 @@ func Short(summary, alias string, maxRunes int) string {
 	return strings.TrimRight(out, " ,;:-(")
 }
 
-// StripKey removes the ticket key and the separators around it from a PR
-// title: "ABC-412 ingress: body size 25m" → "ingress: body size 25m".
+var ccPrefix = regexp.MustCompile(`(?i)^(feat|fix|chore|docs|refactor|test|ci|build|perf|style|revert)(\([^)]*\))?!?:\s*`)
+
+// StripKey removes a conventional-commit prefix, then the ticket key and the
+// separators around it, from a PR title: "ABC-412 ingress: body size 25m" →
+// "ingress: body size 25m".
 func StripKey(title, key string) string {
-	t := strings.TrimSpace(title)
+	t := ccPrefix.ReplaceAllString(strings.TrimSpace(title), "")
 	if key != "" {
 		re := regexp.MustCompile(`(?i)[\[(]?\b` + regexp.QuoteMeta(key) + `\b[\])]?[:\s-]*`)
 		t = strings.TrimSpace(re.ReplaceAllString(t, ""))

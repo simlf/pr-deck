@@ -192,10 +192,11 @@ Add the status-line and popup lines from [Install](#tmux-fallback).
 | `m` | merge, with every guard below; on a scheduled PR, cancel the schedule |
 | `p` | pair: pick the PR that must merge first (`u` unpairs) |
 | `f` | reviewed: clear ⚑ until tomorrow |
+| `z` / `Z` | snooze the PR for a day (`z` again wakes it) / show snoozed PRs |
 | `t` | rename the topic's short form |
 | `R` / `s` | switch board ↔ recall / cycle the recall sort (needs you, age, repo) |
 | `h`/`l`, click a header | fold / unfold topic groups |
-| `/` | filter by topic, repo, ticket or title |
+| `/` | filter by topic, purpose, repo or its alias, ticket (`ops2819` finds `OPS-2819`), PR number (`2819`, `#2819`) or title |
 | `ctrl+r`, `?`, `q` | refresh now, the guide (keys, marks, flows; `j`/`k` scroll), quit |
 
 ### Typical flows

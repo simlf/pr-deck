@@ -462,6 +462,46 @@ func TestReviewText(t *testing.T) {
 	if got := reviewText("Bump the AWS provider", "", "fix!: pin aws 5.x", url); got != "Bump the AWS provider: pin aws 5.x "+url {
 		t.Fatalf("no ticket: %q", got)
 	}
+	title := "fix(ops-0000): run Kyverno HA and enforce zone spread on Pods on production-par"
+	once := "run Kyverno HA and enforce zone spread on Pods on production-par " + url
+	for _, topic := range []string{title, "run Kyverno HA and enforce zone spread on Pods on production-par", "Kyverno HA"} {
+		if got := reviewText(topic, "", title, url); got != once {
+			t.Errorf("topic %q: got %q, want the text once", topic, got)
+		}
+	}
+}
+
+func TestFilterPurposeAliasAndSnooze(t *testing.T) {
+	m, _ := fixture(t)
+	m.dk.Cfg.Deck.RepoAliases = map[string]string{"GW": "api-gateway"}
+	m.recompute()
+	for f, want := range map[string]string{
+		"1042": "acme/api-gateway#1042", "#1042": "acme/api-gateway#1042", "abc398": "acme/api-gateway#1042",
+		"gw#": "acme/api-gateway#1042", "rotation steps": "acme/runbooks#88",
+	} {
+		m.filter = f
+		if ks := m.keys(); len(ks) != 1 || ks[0] != want {
+			t.Errorf("filter %q keys = %v, want %s", f, ks, want)
+		}
+	}
+	m.filter = ""
+	out := plain(m.View())
+	if !strings.Contains(out, "GW#1042") || !strings.Contains(out, "Write the rotation steps down.") {
+		t.Errorf("rows need the repo alias and the purpose:\n%s", out)
+	}
+	m.cursor = "acme/runbooks#88"
+	press(m, "z")
+	for _, k := range m.keys() {
+		if k == "acme/runbooks#88" {
+			t.Fatal("z should hide the PR")
+		}
+	}
+	press(m, "Z")
+	m.cursor = "acme/runbooks#88"
+	press(m, "z", "Z")
+	if len(m.keys()) != 5 {
+		t.Fatalf("z on a snoozed PR wakes it: keys = %v", m.keys())
+	}
 }
 
 func TestNewHumanComments(t *testing.T) {

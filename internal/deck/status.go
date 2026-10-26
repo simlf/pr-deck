@@ -1,6 +1,7 @@
 package deck
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -176,6 +177,36 @@ func (v View) Topic(p model.PR) string {
 		return p.Ticket
 	}
 	return p.Ref()
+}
+
+// Purpose is what p is for: its Purpose: line, else its title without the
+// conventional-commit prefix and the ticket key.
+func (v View) Purpose(p model.PR) string {
+	if p.Purpose != "" {
+		return p.Purpose
+	}
+	return ticket.StripKey(p.Title, p.Ticket)
+}
+
+// Ref is p.Ref() with the user's repo alias (deck.repo_aliases), for display.
+func (v View) Ref(p model.PR) string {
+	name := p.RepoName()
+	best := ""
+	for alias, full := range v.Cfg.Deck.RepoAliases {
+		if (full == name || full == p.Repo) && (best == "" || alias < best) {
+			best = alias
+		}
+	}
+	if best != "" {
+		name = best
+	}
+	return fmt.Sprintf("%s#%d", name, p.Number)
+}
+
+// Snoozed reports whether the user hid p for now (z).
+func (v View) Snoozed(p model.PR) bool {
+	until, ok := v.State.SnoozedUntil[p.Key()]
+	return ok && v.Now.Before(until)
 }
 
 // TopicShort is the compact topic: the user's alias (t key) for the ticket

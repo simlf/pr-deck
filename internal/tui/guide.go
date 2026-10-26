@@ -21,10 +21,12 @@ KEYS
                 on a scheduled PR, cancel the schedule
   p / u         pair: pick the PR that must merge first / unpair
   f             reviewed: clear ⚑ until tomorrow
+  z / Z         snooze the PR for a day (z again wakes it) / show snoozed PRs
   t             rename the topic's short form
   R / s         switch board ↔ recall / cycle the recall sort
   h / l         fold / unfold topic groups (click a header too)
-  /             filter by topic, repo, ticket or title
+  /             filter by topic, purpose, repo (or its alias), ticket
+                (ops2819 finds OPS-2819), PR number or title
   ctrl+r        refresh now
   ? / q         this guide / quit
 
@@ -34,7 +36,7 @@ MARKS
   review   ✓ approved  ✎ changes requested  ◌ posted  ◔ overdue  ○ not posted
   other    Δ N ws  terraform plans with changes (red: a plan destroys)
            💬 N  new human comments since your last push or action
-           ⚑ needs you and untouched today  ▲ production label
+           ⚑ needs you and untouched today  z snoozed  ▲ production label
            ┌① └②  merge order of an eng → prod chain (┆ inferred, p confirms)
 
 FLOWS

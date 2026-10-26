@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
@@ -36,17 +37,30 @@ var stateRank = map[string]int{
 }
 
 func (m *Model) visible(p model.PR) bool {
+	v := m.view
+	if !m.snoozed && v.Snoozed(p) {
+		return false
+	}
 	if m.filter == "" {
 		return true
 	}
-	f := strings.ToLower(m.filter)
-	v := m.view
-	for _, s := range []string{v.Topic(p), v.TopicShort(p), p.Ref(), p.Ticket, p.Title, p.Branch} {
-		if strings.Contains(strings.ToLower(s), f) {
+	f, fa := strings.ToLower(m.filter), alnum(m.filter)
+	for _, s := range []string{v.Topic(p), v.TopicShort(p), p.Ref(), v.Ref(p), p.Ticket, p.Title, p.Branch, v.Purpose(p)} {
+		if strings.Contains(strings.ToLower(s), f) || fa != "" && strings.Contains(alnum(s), fa) {
 			return true
 		}
 	}
 	return false
+}
+
+// alnum lowercases s and keeps letters and digits, so "ops2819" finds OPS-2819.
+func alnum(s string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			return unicode.ToLower(r)
+		}
+		return -1
+	}, s)
 }
 
 // groups builds the board's topic groups: one per ticket, one per Purpose of
@@ -295,14 +309,17 @@ func (m *Model) nextCell(p model.PR, st lipgloss.Style, w int) string {
 }
 
 func (m *Model) flagMark(p model.PR) string {
-	if m.view.Flagged(p) {
+	switch {
+	case m.view.Snoozed(p):
+		return sDim.Render("z")
+	case m.view.Flagged(p):
 		return sYellow.Render("⚑")
 	}
 	return " "
 }
 
 func (m *Model) refText(p model.PR) (string, bool) {
-	return p.Ref(), m.view.Production(p)
+	return m.view.Ref(p), m.view.Production(p)
 }
 
 func (m *Model) renderRef(p model.PR, w int, selected bool) string {
@@ -337,8 +354,13 @@ func (m *Model) boardLines(width int) []line {
 	if nextW < 10 {
 		nextW = 10
 	}
+	purW := 0
+	if !narrow {
+		purW = nextW / 2
+		nextW -= purW
+	}
 	var out []line
-	hdr := sDim.Render(fit("", 5) + fit("PR", refW) + fit("env", envW) + fit("state", stW) + fit("review", revW) + fit("next", nextW) + fit("age", ageW))
+	hdr := sDim.Render(fit("", 5) + fit("PR", refW) + fit("purpose", purW) + fit("env", envW) + fit("state", stW) + fit("review", revW) + fit("next", nextW) + fit("age", ageW))
 	out = append(out, line{text: hdr})
 	for _, g := range m.groups() {
 		fold := "▾"
@@ -383,7 +405,7 @@ func (m *Model) boardLines(width int) []line {
 				revText = ri.Glyph
 			}
 			row := sDim.Render(lead(p, first, last)) + stateStyle(st).Render(fit(deck.Glyph(st), 2)) +
-				m.renderRef(p, refW, sel) + cell(sDim, p.Env, envW) + cell(stateStyle(st), m.stateLabel(p), stW) +
+				m.renderRef(p, refW, sel) + cell(sPlain, v.Purpose(p), purW) + cell(sDim, p.Env, envW) + cell(stateStyle(st), m.stateLabel(p), stW) +
 				cell(reviewStyle(ri.Kind), revText, revW) + m.nextCell(p, sDim, nextW) + cell(sDim, m.age(p), ageW) + m.flagMark(p)
 			if sel {
 				row = sSel.Render("▌") + row
@@ -427,7 +449,7 @@ func (m *Model) recallLines(width int) []line {
 			purpose = p.Why.Prompt
 		}
 		if purpose == "" {
-			purpose = p.Title
+			purpose = v.Purpose(p)
 		}
 		l2 := "  " + sDim.Render(cont) + "  " + cell(reviewStyle(ri.Kind), ri.Glyph+" "+ri.Short, 17) + cell(sDim, purpose, width-2-3-2-17-1)
 		mark := " "

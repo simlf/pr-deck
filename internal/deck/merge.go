@@ -190,6 +190,20 @@ func (d *Deck) MarkReviewed(key string) error {
 	return err
 }
 
+// Snooze hides key from the deck until the same time tomorrow; on false it
+// shows key again.
+func (d *Deck) Snooze(key string, on bool) error {
+	_, err := d.Store.Update(func(s *state.State) error {
+		if on {
+			s.SnoozedUntil[key] = d.Now().Add(24 * time.Hour)
+		} else {
+			delete(s.SnoozedUntil, key)
+		}
+		return nil
+	})
+	return err
+}
+
 // SetAlias stores the short topic for an alias key ("" clears it).
 func (d *Deck) SetAlias(key, alias string) error {
 	_, err := d.Store.Update(func(s *state.State) error {

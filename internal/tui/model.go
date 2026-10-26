@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"regexp"
 	"strings"
 	"time"
 
@@ -19,6 +18,7 @@ import (
 	"github.com/simlf/pr-deck/internal/herdr"
 	"github.com/simlf/pr-deck/internal/model"
 	"github.com/simlf/pr-deck/internal/pairs"
+	"github.com/simlf/pr-deck/internal/ticket"
 	"github.com/simlf/pr-deck/internal/window"
 )
 
@@ -60,6 +60,7 @@ type Model struct {
 	sort      int
 	filter    string
 	whyOpen   bool
+	snoozed   bool // show snoozed PRs (Z)
 
 	mode     mode
 	plan     deck.Plan
@@ -426,6 +427,14 @@ func (m *Model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.layout == Board {
 			m.layout = Recall
 		}
+	case "Z":
+		m.snoozed = !m.snoozed
+		m.ensureCursor()
+		if m.snoozed {
+			m.say("showing snoozed PRs (z wakes one)")
+		} else {
+			m.say("snoozed PRs hidden")
+		}
 	case "/":
 		m.mode, m.input = modeFilter, []rune(m.filter)
 	case "?":
@@ -509,6 +518,18 @@ func (m *Model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.say("reviewed " + p.Ref() + ": flag cleared until tomorrow")
 	case "t":
 		m.mode, m.input = modeAlias, []rune(m.view.TopicShort(p))
+	case "z":
+		on := !m.view.Snoozed(p)
+		if err := m.dk.Snooze(p.Key(), on); err != nil {
+			m.setErr(err)
+			return m, nil
+		}
+		m.recompute()
+		if on {
+			m.say("snoozed " + p.Ref() + " for a day · Z shows snoozed PRs")
+		} else {
+			m.say("woke " + p.Ref())
+		}
 	}
 	return m, nil
 }
@@ -644,15 +665,18 @@ func (m *Model) reviewRequest(p model.PR) string {
 	return text
 }
 
-var ccPrefix = regexp.MustCompile(`^[a-z]+(\([^)]*\))?!?:\s*`)
-
-// reviewText reads "topic (KEY): title without its conventional-commit prefix url".
+// reviewText reads "topic (KEY): title without its prefix and key url", with
+// the text only once when the title and the topic say the same thing.
 func reviewText(topic, key, title, url string) string {
+	t := ticket.StripKey(title, key)
+	if topic = ticket.StripKey(topic, ""); t != "" && strings.Contains(t, topic) {
+		topic, t = t, ""
+	}
 	text := topic
 	if key != "" && topic != key {
 		text += " (" + key + ")"
 	}
-	if t := ccPrefix.ReplaceAllString(title, ""); t != "" && t != topic {
+	if t != "" && !strings.Contains(topic, t) {
 		text += ": " + t
 	}
 	return text + " " + url
