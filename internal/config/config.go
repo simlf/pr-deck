@@ -119,6 +119,8 @@ type Deck struct {
 	OpenCmd   []string `toml:"open_cmd"`
 	CopyCmd   []string `toml:"copy_cmd"`
 	StaleWarn Duration `toml:"stale_warn"`
+	// RepoAliases maps a short display name to a repo name: ISAC = "infra-as-code".
+	RepoAliases map[string]string `toml:"repo_aliases"`
 }
 
 // Duration wraps time.Duration for TOML strings like "5h".

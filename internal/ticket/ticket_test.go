@@ -44,6 +44,8 @@ func TestStripKey(t *testing.T) {
 		"[ABC-412] ingress":                    "ingress",
 		"ingress fix (abc-412)":                "ingress fix",
 		"ABC-412":                              "",
+		"feat(abc-412): monitor redis":         "monitor redis",
+		"ingress: body size":                   "ingress: body size",
 	} {
 		if got := StripKey(in, "ABC-412"); got != want {
 			t.Errorf("StripKey(%q) = %q, want %q", in, got, want)

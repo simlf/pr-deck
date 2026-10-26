@@ -1,5 +1,5 @@
 // Package state keeps pr-deck's small local state: scheduled merges,
-// "reviewed" marks, topic aliases, manual pairs, touches and which
+// "reviewed" marks, snoozes, topic aliases, manual pairs, touches and which
 // reminders were already sent. The TUI and the daemon share it, so every
 // write goes through Update, which holds an exclusive file lock.
 package state
@@ -29,6 +29,7 @@ type State struct {
 	Pairs         map[string]string    `json:"pairs"`
 	Touches       map[string]time.Time `json:"touches"`
 	Notified      map[string]time.Time `json:"notified"`
+	SnoozedUntil  map[string]time.Time `json:"snoozed_until"`
 }
 
 func (s *State) init() {
@@ -49,6 +50,9 @@ func (s *State) init() {
 	}
 	if s.Notified == nil {
 		s.Notified = map[string]time.Time{}
+	}
+	if s.SnoozedUntil == nil {
+		s.SnoozedUntil = map[string]time.Time{}
 	}
 }
 
@@ -137,6 +141,11 @@ func (s *State) Prune(now time.Time, keep time.Duration) {
 	for k, t := range s.ReviewedUntil {
 		if now.After(t) {
 			delete(s.ReviewedUntil, k)
+		}
+	}
+	for k, t := range s.SnoozedUntil {
+		if now.After(t) {
+			delete(s.SnoozedUntil, k)
 		}
 	}
 }
