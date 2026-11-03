@@ -32,7 +32,8 @@ type Plan struct {
 
 // PlanMerge runs the guards in order: already merged → scheduled (offer
 // cancel) → pair order (offer the earlier sibling) → CI → draft → conflict →
-// review → merge window (offer a schedule) → confirm.
+// review → hold (refuse, or offer a schedule at its date) → merge window
+// (offer a schedule) → confirm.
 func (v View) PlanMerge(p model.PR) Plan {
 	if p.Merged() {
 		return Plan{Kind: PlanRefuse, Message: p.Ref() + " is already merged"}
@@ -56,6 +57,17 @@ func (v View) PlanMerge(p model.PR) Plan {
 	}
 	if r := v.blocker(p); r != "" {
 		return Plan{Kind: PlanRefuse, Message: r}
+	}
+	if v.Held(p) {
+		if p.HoldUntil.IsZero() {
+			return Plan{Kind: PlanRefuse, Message: "‖ " + p.Ref() + " is " + v.holdText(p) + " · delete the Hold: line on GitHub to lift it"}
+		}
+		at := p.HoldUntil
+		if w := v.Rules.At(at); v.Critical(p) && w.Enabled && !w.Open && !w.Next.IsZero() {
+			at = w.Next
+		}
+		return Plan{Kind: PlanSchedule, Target: p, At: at,
+			Message: fmt.Sprintf("‖ %s is %s. Schedule its merge for %s? It re-checks CI, approval and pair order first.", p.Ref(), v.holdText(p), window.When(v.Now, at))}
 	}
 	if v.Critical(p) {
 		w := v.Window()
@@ -112,6 +124,9 @@ func envSuffix(p model.PR) string {
 func (v View) Recheck(p model.PR) (bool, string) {
 	if p.Merged() {
 		return false, "already merged"
+	}
+	if v.Held(p) {
+		return false, v.holdText(p)
 	}
 	if p.Pair != nil && p.Pair.After != "" {
 		if sib, ok := v.Sibling(p); !ok || !sib.Merged() {

@@ -52,16 +52,21 @@ type PR struct {
 	LastCommitAt time.Time `json:"last_commit_at"`
 
 	// Enrichment.
-	Ticket       string     `json:"ticket,omitempty"`
-	Topic        string     `json:"topic,omitempty"`
-	TicketStatus string     `json:"ticket_status,omitempty"`
-	TicketURL    string     `json:"ticket_url,omitempty"`
-	Env          string     `json:"env,omitempty"`
-	Purpose      string     `json:"purpose,omitempty"`
-	Why          *Why       `json:"why,omitempty"`
-	Pair         *PairRef   `json:"pair,omitempty"`
-	Posted       *time.Time `json:"posted,omitempty"`
-	PostedKnown  bool       `json:"posted_known"`
+	Ticket       string `json:"ticket,omitempty"`
+	Topic        string `json:"topic,omitempty"`
+	TicketStatus string `json:"ticket_status,omitempty"`
+	TicketURL    string `json:"ticket_url,omitempty"`
+	Env          string `json:"env,omitempty"`
+	Purpose      string `json:"purpose,omitempty"`
+	TopicLine    string `json:"topic_line,omitempty"` // the body's Topic: line
+	// Held comes from a Hold-until: or Hold: line; HoldUntil is zero with no date.
+	Held        bool       `json:"held,omitempty"`
+	HoldUntil   time.Time  `json:"hold_until,omitempty"`
+	HoldReason  string     `json:"hold_reason,omitempty"`
+	Why         *Why       `json:"why,omitempty"`
+	Pair        *PairRef   `json:"pair,omitempty"`
+	Posted      *time.Time `json:"posted,omitempty"`
+	PostedKnown bool       `json:"posted_known"`
 	// When the slow sources were last asked, so refreshes stay within
 	// Jira and Slack rate limits.
 	TicketFetched time.Time `json:"ticket_fetched,omitempty"`

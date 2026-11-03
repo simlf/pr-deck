@@ -32,7 +32,7 @@ KEYS
 
 MARKS
   state    ● ready  ○ needs review  ✗ CI failed or conflict  ◌ CI running
-           ◇ waits on its sibling  ◦ draft  ◷ merge scheduled  ✓ merged
+           ◇ waits on its sibling  ‖ held (Hold: line)  ◦ draft  ◷ merge scheduled  ✓ merged
   review   ✓ approved  ✎ changes requested  ◌ posted  ◔ overdue  ○ not posted
   other    Δ N ws  terraform plans with changes (red: a plan destroys)
            💬 N  new human comments since your last push or action

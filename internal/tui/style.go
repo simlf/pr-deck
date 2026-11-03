@@ -44,7 +44,7 @@ func stateStyle(st string) lipgloss.Style {
 		return sRed
 	case deck.StRunning:
 		return sYellow
-	case deck.StWaiting:
+	case deck.StWaiting, deck.StHeld:
 		return sMagenta
 	case deck.StScheduled:
 		return sCyan
