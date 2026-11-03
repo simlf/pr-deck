@@ -58,13 +58,14 @@ transcripts_dir = "~/.claude/projects" # Claude Code session transcripts
 source = "custom:pr-deck"
 toasts = true
 position = "top-right"
-recall_at = "17:30"                    # daily "untouched today" nudge; "" disables
+recall_at = "17:30"                    # daily "⚑ need you" nudge; "" disables
 # Outside herdr, toasts can go through any command:
 # notify_cmd = ["terminal-notifier", "-title", "{title}", "-message", "{body}"]
 
 [deck]
 refresh = "60s"
 stale_warn = "10m"
+stale_after = "14d"                    # yellow age and the recall "stale" sort past this
 # open_cmd = ["open"]
 # copy_cmd = ["pbcopy"]
 # Short repo names on the rows (display and / filter only): alias = "repo name".
@@ -73,6 +74,10 @@ stale_warn = "10m"
 # Rows with no icon get a blank of the same width. Examples:
 # nf-md-terraform, nf-fa-cloud (Cloudflare), nf-oct-package (app), nf-fa-github.
 # repo_icons = { INFRA = "\U000F1062", EDGE = "\uf0c2", APPS = "\uf487", GH = "\uf09b" }
+
+[ci]
+# Check names whose failures show as flaky (CI ✗~) instead of CI ✗.
+# known_flaky = ["e2e (chromium)"]
 
 # Notes from the diff pager (v, then c on a line) go to firstmate's captain
 # inbox: $bin/fm-inbox.sh note -- "<PR url> <file>:<line> <text>" with FM_HOME=home.

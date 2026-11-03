@@ -42,7 +42,7 @@ func testView(t *testing.T) deck.View {
 
 func TestLine1(t *testing.T) {
 	got := Line1(testView(t), Plain)
-	for _, want := range []string{"3 open", "●1 ready", "✗1 CI", "◇1 waiting", "⚑1 untouched today",
+	for _, want := range []string{"3 open", "●1 ready", "✗1 CI", "◇1 waiting", "⚑1 needs you",
 		"Allow bigger uploads ①●→②◇", "⊘ prod window Fri–Sun closed · opens Mon 26 Oct 09:30"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("line 1 missing %q:\n%s", want, got)
@@ -90,5 +90,16 @@ func TestRepoFromRemote(t *testing.T) {
 		if got := repoFromRemote(in); got != want {
 			t.Errorf("repoFromRemote(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+func TestLine1Offline(t *testing.T) {
+	v := testView(t)
+	if strings.Contains(Line1(v, Plain), "offline") {
+		t.Fatal("online: no offline mark")
+	}
+	v.Snap.OfflineSince = time.Date(2026, 10, 23, 9, 41, 0, 0, time.Local)
+	if got := Line1(v, Plain); !strings.Contains(got, "offline since 09:41") {
+		t.Fatalf("offline mark missing: %s", got)
 	}
 }

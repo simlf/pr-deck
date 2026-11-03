@@ -61,8 +61,11 @@ func Line1(v deck.View, format string) string {
 	if c.Scheduled > 0 {
 		parts = append(parts, p("cyan", fmt.Sprintf("◷%d", c.Scheduled))+" scheduled")
 	}
-	parts = append(parts, p("yellow", fmt.Sprintf("⚑%d", c.Flagged))+" untouched today")
+	parts = append(parts, p("yellow", fmt.Sprintf("⚑%d", c.Flagged))+" needs you")
 	out := strings.Join(parts, " ")
+	if t := v.Snap.OfflineSince; !t.IsZero() {
+		out += " ▏ " + p("red", "offline since "+t.Local().Format("15:04"))
+	}
 	if ch := chainSegment(v, p); ch != "" {
 		out += " ▏ " + ch
 	}
@@ -118,7 +121,7 @@ func colorOf(state string) string {
 		return "green"
 	case deck.StFail, deck.StConflict:
 		return "red"
-	case deck.StRunning:
+	case deck.StRunning, deck.StBlocked:
 		return "yellow"
 	case deck.StWaiting, deck.StHeld:
 		return "magenta"
@@ -149,7 +152,7 @@ func Line2(v deck.View, cwd, format string) string {
 		return p("magenta", fmt.Sprintf("💬 %d PRs with new comments", c.Commented)) + p("brightblack", " · prd recall")
 	}
 	if c.Flagged > 0 {
-		return p("yellow", fmt.Sprintf("⚑ %d PRs untouched today", c.Flagged)) + p("brightblack", " · prd recall")
+		return p("yellow", fmt.Sprintf("⚑ %d PRs need you", c.Flagged)) + p("brightblack", " · prd recall")
 	}
 	return p("green", "✓ nothing needs you")
 }

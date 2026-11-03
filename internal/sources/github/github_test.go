@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -219,7 +220,11 @@ func TestCommentsKeepPeopleOtherThanTheAuthor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := g.toModel().Comments
+	m := g.toModel()
+	got := m.Comments
+	if m.AuthorActiveAt.Format("15:04") != "12:00" {
+		t.Fatalf("author active at = %v", m.AuthorActiveAt)
+	}
 	var urls []string
 	for _, c := range got {
 		urls = append(urls, c.URL)
@@ -229,5 +234,27 @@ func TestCommentsKeepPeopleOtherThanTheAuthor(t *testing.T) {
 	}
 	if got[0].Path != "main.tf" || got[0].Line != 12 || got[1].Body != "requested changes" || got[2].Body != "why 25m?" {
 		t.Fatalf("comments = %+v", got)
+	}
+}
+
+func TestCancelledRunsOnlyWhenNothingElseFailed(t *testing.T) {
+	read := func(nodes string) model.PR {
+		var g gqlPR
+		js := `{"commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"FAILURE","contexts":{"nodes":[` + nodes + `]}}}}]}}`
+		if err := json.Unmarshal([]byte(js), &g); err != nil {
+			t.Fatal(err)
+		}
+		return g.toModel()
+	}
+	run := func(name, concl string, id int) string {
+		return `{"__typename":"CheckRun","name":"` + name + `","conclusion":"` + concl + `","checkSuite":{"workflowRun":{"databaseId":` + strconv.Itoa(id) + `}}}`
+	}
+	p := read(run("lint", "FAILURE", 1) + "," + run("e2e", "CANCELLED", 2) + "," + run("lint2", "FAILURE", 1))
+	if !reflect.DeepEqual(p.FailedRuns, []int64{1}) || !reflect.DeepEqual(p.FailedJobs, []string{"lint", "lint2"}) {
+		t.Fatalf("runs %v jobs %v", p.FailedRuns, p.FailedJobs)
+	}
+	p = read(run("e2e", "CANCELLED", 2))
+	if !reflect.DeepEqual(p.FailedRuns, []int64{2}) || !reflect.DeepEqual(p.FailedJobs, []string{"e2e"}) {
+		t.Fatalf("only cancelled: runs %v jobs %v", p.FailedRuns, p.FailedJobs)
 	}
 }

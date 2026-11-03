@@ -41,6 +41,8 @@ type PR struct {
 
 	// FailedRuns are workflow run ids with failed jobs, for rerun.
 	FailedRuns []int64 `json:"failed_runs,omitempty"`
+	// FailedJobs are the names of the failed check runs.
+	FailedJobs []string `json:"failed_jobs,omitempty"`
 
 	ReviewDecision string   `json:"review_decision"`
 	Reviewer       string   `json:"reviewer,omitempty"`
@@ -50,6 +52,8 @@ type PR struct {
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 	LastCommitAt time.Time `json:"last_commit_at"`
+	// AuthorActiveAt is the author's latest comment or review on the PR.
+	AuthorActiveAt time.Time `json:"author_active_at,omitempty"`
 
 	// Enrichment.
 	Ticket       string `json:"ticket,omitempty"`
@@ -167,6 +171,8 @@ type Snapshot struct {
 	Build  string    `json:"build,omitempty"`
 	PRs    []PR      `json:"prs"`
 	Errors []string  `json:"errors,omitempty"`
+	// OfflineSince is when refreshes started failing; zero when the last one worked.
+	OfflineSince time.Time `json:"offline_since,omitempty"`
 }
 
 // Find returns the PR with key, if present.

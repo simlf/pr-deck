@@ -39,6 +39,8 @@ func Glyph(state string) string {
 		return "◌"
 	case StReview:
 		return "○"
+	case StBlocked:
+		return "⊟"
 	}
 	return "●"
 }
@@ -91,7 +93,7 @@ func (v View) Notices() []Event {
 			due := time.Date(now.Year(), now.Month(), now.Day(), hm.Hour(), hm.Minute(), 0, 0, now.Location())
 			if !now.Before(due) {
 				if n := v.Count().Flagged; n > 0 {
-					out = append(out, Event{ID: "recall:" + now.Format("2006-01-02"), Title: fmt.Sprintf("⚑ %d PRs untouched today", n), Body: "end-of-day recall: prd recall (R in the board)"})
+					out = append(out, Event{ID: "recall:" + now.Format("2006-01-02"), Title: fmt.Sprintf("⚑ %d PRs need you", n), Body: "end-of-day recall: prd recall (R in the board)"})
 				}
 			}
 		}

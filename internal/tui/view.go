@@ -142,6 +142,9 @@ func (m *Model) header(w int) []string {
 		if age > m.dk.Cfg.Deck.StaleWarn.Duration && m.dk.Cfg.Deck.StaleWarn.Duration > 0 {
 			right = sYellow.Render("stale " + review.Age(age))
 		}
+		if t := v.Snap.OfflineSince; !t.IsZero() {
+			right = sRed.Render("offline since " + t.Local().Format("15:04"))
+		}
 	}
 	lines := []string{padLine(title, w-lipgloss.Width(right)) + right}
 	if wd := v.Window(); wd.Enabled {
@@ -203,6 +206,12 @@ func (m *Model) why(p model.PR, w int, full bool) []string {
 	}
 	meta := sBold.Render(p.Ref()) + sDim.Render(" · "+m.age(p)+" old")
 	var marks []string
+	if v.Stale(p) {
+		marks = append(marks, sYellow.Render("stale"))
+	}
+	if p.MergeState == "BEHIND" {
+		marks = append(marks, sYellow.Render("behind base"))
+	}
 	if v.Critical(p) {
 		marks = append(marks, sYellow.Render("critical"))
 	}

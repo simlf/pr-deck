@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,6 +30,7 @@ type Config struct {
 	Herdr        Herdr        `toml:"herdr"`
 	Deck         Deck         `toml:"deck"`
 	Firstmate    Firstmate    `toml:"firstmate"`
+	CI           CI           `toml:"ci"`
 
 	// ProductionLabel marks PRs whose plan changes production (▲).
 	ProductionLabel string `toml:"production_label"`
@@ -111,6 +113,12 @@ type Firstmate struct {
 	Bin  string `toml:"bin"`  // directory holding fm-inbox.sh
 }
 
+// CI configures how CI failures read.
+type CI struct {
+	// KnownFlaky are check names whose failures show as flaky (✗~).
+	KnownFlaky []string `toml:"known_flaky"`
+}
+
 // Deck holds general behaviour.
 type Deck struct {
 	Refresh   Duration `toml:"refresh"`
@@ -119,6 +127,8 @@ type Deck struct {
 	OpenCmd   []string `toml:"open_cmd"`
 	CopyCmd   []string `toml:"copy_cmd"`
 	StaleWarn Duration `toml:"stale_warn"`
+	// StaleAfter marks PRs open longer than this as stale.
+	StaleAfter Duration `toml:"stale_after"`
 	// RepoAliases maps a short display name to a repo name: ISAC = "infra-as-code".
 	RepoAliases map[string]string `toml:"repo_aliases"`
 	// RepoIcons maps an alias or repo name to a glyph shown before it on the rows.
@@ -130,7 +140,14 @@ type Duration struct{ time.Duration }
 
 // UnmarshalText implements encoding.TextUnmarshaler.
 func (d *Duration) UnmarshalText(b []byte) error {
-	v, err := time.ParseDuration(strings.TrimSpace(string(b)))
+	s := strings.TrimSpace(string(b))
+	if n, ok := strings.CutSuffix(s, "d"); ok {
+		if days, err := strconv.Atoi(n); err == nil {
+			d.Duration = time.Duration(days) * 24 * time.Hour
+			return nil
+		}
+	}
+	v, err := time.ParseDuration(s)
 	if err != nil {
 		return err
 	}
@@ -183,8 +200,9 @@ func Default() Config {
 		},
 		Herdr: Herdr{Source: "custom:pr-deck", Toasts: true, Position: "top-right", RecallAt: "17:30"},
 		Deck: Deck{
-			Refresh:   Duration{60 * time.Second},
-			StaleWarn: Duration{10 * time.Minute},
+			Refresh:    Duration{60 * time.Second},
+			StaleWarn:  Duration{10 * time.Minute},
+			StaleAfter: Duration{14 * 24 * time.Hour},
 		},
 		ProductionLabelIsCritical: true,
 		Envs:                      []string{"eng", "prod"},

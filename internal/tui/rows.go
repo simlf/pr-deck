@@ -32,7 +32,7 @@ type group struct {
 }
 
 var stateRank = map[string]int{
-	deck.StFail: 0, deck.StReady: 1, deck.StConflict: 2, deck.StReview: 3, deck.StScheduled: 4,
+	deck.StFail: 0, deck.StReady: 1, deck.StConflict: 2, deck.StBlocked: 2, deck.StReview: 3, deck.StScheduled: 4,
 	deck.StRunning: 5, deck.StWaiting: 6, deck.StHeld: 6, deck.StDraft: 7, deck.StMerged: 9,
 }
 
@@ -167,9 +167,10 @@ func (m *Model) recallRows() []model.PR {
 		}
 		units[id] = append(units[id], p)
 	}
-	score := func(u []model.PR) (int, time.Time, string) {
-		best, oldest := 99, time.Now()
+	score := func(u []model.PR) (int, time.Time, string, bool) {
+		best, oldest, stale := 99, time.Now(), false
 		for _, p := range u {
+			stale = stale || v.Stale(p)
 			r := stateRank[v.StateOf(p)]
 			if v.Flagged(p) || len(v.NewComments(p)) > 0 {
 				r -= 10
@@ -181,17 +182,24 @@ func (m *Model) recallRows() []model.PR {
 				oldest = p.CreatedAt
 			}
 		}
-		return best, oldest, u[0].Repo
+		return best, oldest, u[0].Repo, stale
 	}
 	sort.SliceStable(ids, func(i, j int) bool {
-		si, ai, ri := score(units[ids[i]])
-		sj, aj, rj := score(units[ids[j]])
+		si, ai, ri, xi := score(units[ids[i]])
+		sj, aj, rj, xj := score(units[ids[j]])
 		switch m.sort {
 		case 1:
 			return ai.Before(aj)
 		case 2:
 			if ri != rj {
 				return ri < rj
+			}
+		case 3:
+			if xi != xj {
+				return xi
+			}
+			if xi {
+				return ai.Before(aj)
 			}
 		}
 		if si != sj {
@@ -208,7 +216,7 @@ func (m *Model) recallRows() []model.PR {
 	return out
 }
 
-var sortNames = []string{"needs you", "age", "repo"}
+var sortNames = []string{"needs you", "age", "repo", "stale"}
 
 // lead draws the chain connector and order digit: ┌① └② (┆ when inferred).
 func lead(p model.PR, first, last bool) string {
@@ -259,6 +267,9 @@ func (m *Model) stateLabel(p model.PR) string {
 		if m.rerunning[p.Key()] {
 			return "⟳ CI rerun"
 		}
+		if v.Flaky(p) {
+			return "CI ✗~ flaky"
+		}
 		return "CI ✗"
 	case deck.StRunning:
 		return "CI ◌"
@@ -287,6 +298,14 @@ func (m *Model) age(p model.PR) string {
 		return ""
 	}
 	return review.Age(m.view.Now.Sub(p.CreatedAt))
+}
+
+// ageStyle is yellow past deck.stale_after, else dim.
+func (m *Model) ageStyle(p model.PR) lipgloss.Style {
+	if m.view.Stale(p) {
+		return sYellow
+	}
+	return sDim
 }
 
 // planMark is the list mark for terraform plans with changes ("Δ 2 ws "),
@@ -413,7 +432,10 @@ func (m *Model) boardLines(width int) []line {
 			}
 			row := sDim.Render(lead(p, first, last)) + stateStyle(st).Render(fit(deck.Glyph(st), 2)) +
 				m.renderRef(p, refW, sel) + cell(sPlain, v.Purpose(p), purW) + cell(sDim, p.Env, envW) + cell(stateStyle(st), m.stateLabel(p), stW) +
-				cell(reviewStyle(ri.Kind), revText, revW) + m.nextCell(p, sDim, nextW) + cell(sDim, m.age(p), ageW) + m.flagMark(p)
+				cell(reviewStyle(ri.Kind), revText, revW) + m.nextCell(p, sDim, nextW) + cell(m.ageStyle(p), m.age(p), ageW) + m.flagMark(p)
+			if p.Merged() {
+				row = struck(row)
+			}
 			if sel {
 				row = sSel.Render("▌") + row
 			} else {
@@ -442,7 +464,7 @@ func (m *Model) recallLines(width int) []line {
 		st := v.StateOf(p)
 		ri := v.Review(p)
 		l1 := m.flagMark(p) + " " + sDim.Render(lead(p, first, last)) + stateStyle(st).Render(fit(deck.Glyph(st), 2)) +
-			m.renderRef(p, refW, sel) + cell(sCyan, v.TopicShort(p), topicW) + cell(sDim, m.age(p), ageW) + m.nextCell(p, sPlain, nextW)
+			m.renderRef(p, refW, sel) + cell(sCyan, v.TopicShort(p), topicW) + cell(m.ageStyle(p), m.age(p), ageW) + m.nextCell(p, sPlain, nextW)
 		cont := "   "
 		if p.Pair != nil && !last {
 			if p.Pair.Inferred {
@@ -459,6 +481,9 @@ func (m *Model) recallLines(width int) []line {
 			purpose = v.Purpose(p)
 		}
 		l2 := "  " + sDim.Render(cont) + "  " + cell(reviewStyle(ri.Kind), ri.Glyph+" "+ri.Short, 17) + cell(sDim, purpose, width-2-3-2-17-1)
+		if p.Merged() {
+			l1, l2 = struck(l1), struck(l2)
+		}
 		mark := " "
 		if sel {
 			mark = sSel.Render("▌")
