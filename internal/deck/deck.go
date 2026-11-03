@@ -163,6 +163,8 @@ func (d *Deck) enrichBasic(p *model.PR) {
 	p.Ticket = ticket.Extract(d.Cfg.Jira.Projects, p.Branch, p.Title, p.Body)
 	p.Env = pairs.DetectEnv(d.Cfg.Envs, p.Branch, p.Title, p.Labels)
 	p.Purpose = trailer.Purpose(p.Body)
+	p.TopicLine = trailer.Topic(p.Body)
+	p.HoldUntil, p.HoldReason, p.Held = trailer.Hold(p.Body)
 }
 
 // Re-ask Jira and Slack at most this often; GitHub is asked every refresh.

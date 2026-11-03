@@ -120,7 +120,7 @@ func colorOf(state string) string {
 		return "red"
 	case deck.StRunning:
 		return "yellow"
-	case deck.StWaiting:
+	case deck.StWaiting, deck.StHeld:
 		return "magenta"
 	case deck.StScheduled:
 		return "cyan"

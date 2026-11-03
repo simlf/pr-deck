@@ -33,7 +33,7 @@ type group struct {
 
 var stateRank = map[string]int{
 	deck.StFail: 0, deck.StReady: 1, deck.StConflict: 2, deck.StReview: 3, deck.StScheduled: 4,
-	deck.StRunning: 5, deck.StWaiting: 6, deck.StDraft: 7, deck.StMerged: 9,
+	deck.StRunning: 5, deck.StWaiting: 6, deck.StHeld: 6, deck.StDraft: 7, deck.StMerged: 9,
 }
 
 func (m *Model) visible(p model.PR) bool {
@@ -80,6 +80,8 @@ func (m *Model) groups() []group {
 			switch {
 			case id == deck.NoGroup:
 				g.topic = "No ticket"
+			case p.Ticket == "" && strings.TrimSpace(p.TopicLine) != "":
+				g.topic = strings.TrimSpace(p.TopicLine)
 			case p.Ticket == "":
 				g.topic = v.GroupPurpose(p)
 			default:
@@ -243,6 +245,11 @@ func (m *Model) stateLabel(p model.PR) string {
 			return "waits " + deck.OrderMark(sib)
 		}
 		return "waits"
+	case deck.StHeld:
+		if p.HoldUntil.IsZero() {
+			return "‖ held"
+		}
+		return "‖ " + shortWhen(v.Now, p.HoldUntil)
 	case deck.StScheduled:
 		if sch, ok := v.State.Schedules[p.Key()]; ok {
 			return "◷ " + shortWhen(v.Now, sch.At)

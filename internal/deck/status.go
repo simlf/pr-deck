@@ -19,6 +19,7 @@ import (
 const (
 	StMerged    = "merged"
 	StScheduled = "scheduled"
+	StHeld      = "held"    // a Hold-until: date not reached yet, or a Hold: line
 	StWaiting   = "waiting" // its earlier sibling is not merged
 	StDraft     = "draft"
 	StFail      = "fail"
@@ -52,6 +53,8 @@ func (v View) StateOf(p model.PR) string {
 		return StMerged
 	case v.scheduled(p):
 		return StScheduled
+	case v.Held(p):
+		return StHeld
 	}
 	if p.Pair != nil && p.Pair.After != "" {
 		if sib, ok := v.Sibling(p); !ok || !sib.Merged() {
@@ -71,6 +74,19 @@ func (v View) StateOf(p model.PR) string {
 		return StReview
 	}
 	return StReady
+}
+
+// Held reports whether p's Hold-until: date is still ahead, or p has a
+// Hold: line with no date.
+func (v View) Held(p model.PR) bool {
+	return p.Held && (p.HoldUntil.IsZero() || v.Now.Before(p.HoldUntil))
+}
+
+func (v View) holdText(p model.PR) string {
+	if p.HoldUntil.IsZero() {
+		return "held: " + p.HoldReason
+	}
+	return "held until " + window.When(v.Now, p.HoldUntil)
 }
 
 func (v View) scheduled(p model.PR) bool {
@@ -151,7 +167,7 @@ func (v View) Flagged(p model.PR) bool {
 		return false
 	}
 	switch v.StateOf(p) {
-	case StMerged, StWaiting, StRunning, StScheduled:
+	case StMerged, StHeld, StWaiting, StRunning, StScheduled:
 		return false
 	}
 	if until, ok := v.State.ReviewedUntil[p.Key()]; ok && v.Now.Before(until) {
@@ -253,11 +269,14 @@ func (v View) GroupPurpose(p model.PR) string {
 	return p.Purpose
 }
 
-// GroupKey is the board group of p: its ticket, else its group Purpose
-// (trimmed, case-insensitive), else NoGroup.
+// GroupKey is the board group of p: its ticket, else its Topic: line, else
+// its group Purpose (both trimmed, case-insensitive), else NoGroup.
 func (v View) GroupKey(p model.PR) string {
 	if p.Ticket != "" {
 		return p.Ticket
+	}
+	if t := strings.TrimSpace(p.TopicLine); t != "" {
+		return "~t:" + strings.ToLower(t)
 	}
 	if pur := strings.TrimSpace(v.GroupPurpose(p)); pur != "" {
 		return "~p:" + strings.ToLower(pur)
@@ -288,6 +307,11 @@ func (v View) Next(p model.PR) string {
 			return "◷ merges " + window.When(v.Now, sch.At) + " (re-checks first) · m cancel"
 		}
 		return "◷ scheduled · m cancel"
+	case StHeld:
+		if p.HoldUntil.IsZero() {
+			return "‖ " + v.holdText(p) + " · delete the Hold: line to lift"
+		}
+		return "‖ " + v.holdText(p) + " · m schedule"
 	case StWaiting:
 		if sib, ok := v.Sibling(p); ok {
 			return "waits on " + orderMark(sib) + " " + sib.Ref()

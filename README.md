@@ -4,7 +4,7 @@ Terminal overlay to see work in progress: open PRs grouped by the topic (Jira ti
 
 `prd` shows your open GitHub PRs:
 
-- **Grouped by topic, not by key.** A group reads "Allow bigger uploads (ingress 25 MB)", with `ABC-412` small and grey after it. Topics come from the Jira summary, and `t` renames the short form used in tight spots. A PR with no ticket is grouped under its `Purpose:` line (a `Merge-after:` chain under the first PR's), with a grey `no ticket` tag; PRs with neither land in the last "No ticket" group.
+- **Grouped by topic, not by key.** A group reads "Allow bigger uploads (ingress 25 MB)", with `ABC-412` small and grey after it. Topics come from the Jira summary, and `t` renames the short form used in tight spots. A PR with no ticket is grouped under its `Topic:` line, else its `Purpose:` line (a `Merge-after:` chain under the first PR's), with a grey `no ticket` tag; PRs with neither land in the last "No ticket" group.
 - **Eng → prod chains in merge order.** `┌①` and `└②` connect the two halves of a pair, and the prod half shows `◇ waits ①` until eng merges.
 - **Review state on every PR:** ✓ approved, ✎ changes requested, ◌ posted, ◔ overdue (posted in the review channel and still unreviewed after 5h), ○ not posted.
 - **Why the PR exists:** the `Purpose:` line from the PR body plus the exact prompt you gave the agent that opened it, read from Claude Code transcripts.
@@ -232,16 +232,22 @@ A scheduled merge (◷) behaves as follows:
 
 ## Conventions for agents that open PRs
 
-pr-deck works without them, but two body lines make it precise. Ask your agent to write them when it runs `gh pr create`:
+pr-deck works without them, but a few body lines make it precise. Ask your agent to write them when it runs `gh pr create`:
 
 ```text
 Purpose: one plain-language sentence saying why this PR exists
 Merge-after: #318              # this PR merges after #318 in the same repo
 Merge-after: owner/repo#318    # ...or after a PR in another repo
+Topic: prod PDB                # groups the PRs of one initiative across repos
+Hold-until: 2026-10-29 19:00 Europe/Paris   # do not merge before this time
+Hold: waiting for the vendor   # held with no date, until you delete the line
 ```
 
 - `Purpose:` is the one-liner shown everywhere, so pr-deck makes no LLM calls.
 - `Merge-after:` declares an eng → prod (or any ordered) chain. Without it, pr-deck infers pairs from the same ticket and the same branch stem with a different env suffix (`abc-412-body-size-eng` and `-prod`). It draws inferred pairs with a dashed `┆` until you confirm them with `p`.
+- `Topic:` groups ticketless PRs: write the same short name on every PR of one task. It wins over `Purpose:` for grouping; a ticket still wins over both.
+- `Hold-until:` takes a date, an optional `HH:MM` and an optional IANA zone (local time by default). Until then the PR shows `‖ held`: it is not flagged, not counted ready and not named in window-open toasts, and `m` offers a schedule at the hold time (or the next merge window after it). A bare `Hold:` (or a date pr-deck cannot read) holds with no date: `m` refuses. Delete the line on GitHub to lift a hold.
+- `Topic:` and `Hold` lines may also sit in a list bullet (`- Topic: ...`) or in bold (`**Hold:** ...`).
 - Put the env in the branch suffix (`-eng`, `-prod`), a title tag (`(prod)`) or an `env:prod` label.
 
 ## Where the data comes from

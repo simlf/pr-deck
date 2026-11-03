@@ -27,6 +27,8 @@ func Glyph(state string) string {
 		return "✓"
 	case StScheduled:
 		return "◷"
+	case StHeld:
+		return "‖"
 	case StWaiting:
 		return "◇"
 	case StDraft:
