@@ -13,6 +13,8 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 
 	"github.com/simlf/pr-deck/internal/cache"
 	"github.com/simlf/pr-deck/internal/config"
@@ -603,5 +605,35 @@ func TestViewDiffOpensAHerdrTab(t *testing.T) {
 	}
 	if !strings.Contains(m.msg, "herdr tab") {
 		t.Fatalf("msg = %q", m.msg)
+	}
+}
+
+func TestMergedRowIsStruckNotApproved(t *testing.T) {
+	lipgloss.SetColorProfile(termenv.ANSI)
+	defer lipgloss.SetColorProfile(termenv.Ascii)
+	m, _ := fixture(t)
+	for i := range m.view.Snap.PRs {
+		if m.view.Snap.PRs[i].Number == 318 {
+			m.view.Snap.PRs[i].State = "MERGED"
+		}
+	}
+	m.cursor = "acme/runbooks#88"
+	for _, layout := range []string{Board, Recall} {
+		m.layout = layout
+		m.View()
+		for _, ln := range m.lines {
+			if ln.key != "acme/infra-config#318" {
+				continue
+			}
+			if txt := plain(ln.text); strings.Contains(txt, "approved") {
+				t.Errorf("%s: merged PR shows approved: %q", layout, txt)
+			}
+			if !strings.Contains(ln.text, ";9m") && !strings.Contains(ln.text, "[9;") && !strings.Contains(ln.text, "[9m") {
+				t.Errorf("%s: merged row not struck through: %q", layout, ln.text)
+			}
+		}
+	}
+	if got := plain(m.View()); !strings.Contains(got, "✓ merged") {
+		t.Fatalf("merged mark missing:\n%s", got)
 	}
 }

@@ -25,7 +25,8 @@ const (
 	StFail      = "fail"
 	StRunning   = "running"
 	StConflict  = "conflict"
-	StReview    = "review" // not approved yet
+	StReview    = "review"  // not approved yet
+	StBlocked   = "blocked" // approved and green, but branch protection still blocks
 	StReady     = "ready"
 )
 
@@ -85,6 +86,8 @@ func (v View) StateOf(p model.PR) string {
 		return StConflict
 	case p.ReviewDecision != model.ReviewApproved:
 		return StReview
+	case p.MergeState == "BLOCKED" && p.CI == model.CIPass:
+		return StBlocked
 	}
 	return StReady
 }
@@ -138,10 +141,13 @@ func (v View) Production(p model.PR) bool {
 	return v.Cfg.ProductionLabel != "" && p.HasLabel(v.Cfg.ProductionLabel)
 }
 
-// Touched is the last time the user touched p: a new commit, or an action
-// in pr-deck (open, copy, merge, reviewed).
+// Touched is the last time the user touched p: a new commit, their own
+// comment or review on GitHub, or an action in pr-deck (open, copy, merge, reviewed).
 func (v View) Touched(p model.PR) time.Time {
 	t := p.LastCommitAt
+	if p.AuthorActiveAt.After(t) {
+		t = p.AuthorActiveAt
+	}
 	if x, ok := v.State.Touches[p.Key()]; ok && x.After(t) {
 		t = x
 	}
@@ -172,15 +178,17 @@ func (v View) bot(login string) bool {
 	return false
 }
 
-// Flagged is the "untouched today" ⚑: p needs the user, can move, and was
-// not touched since local midnight. PRs waiting on a sibling, on running CI
-// or on a scheduled merge cannot move, so they are skipped.
+// Flagged is the "needs me" ⚑: p needs the user, can move, and was not
+// touched since local midnight. PRs waiting on a sibling, on running CI, on a
+// scheduled merge or on reviewers it was posted to (not overdue yet) are skipped.
 func (v View) Flagged(p model.PR) bool {
 	if p.Sibling {
 		return false
 	}
-	switch v.StateOf(p) {
-	case StMerged, StHeld, StWaiting, StRunning, StScheduled:
+	switch st := v.StateOf(p); {
+	case st == StMerged, st == StHeld, st == StWaiting, st == StRunning, st == StScheduled:
+		return false
+	case st == StReview && v.Review(p).Kind == review.Posted:
 		return false
 	}
 	if until, ok := v.State.ReviewedUntil[p.Key()]; ok && v.Now.Before(until) {
@@ -189,6 +197,31 @@ func (v View) Flagged(p model.PR) bool {
 	now := v.Now.Local()
 	midnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	return v.Touched(p).Before(midnight)
+}
+
+// Stale reports whether p has been open longer than deck.stale_after.
+func (v View) Stale(p model.PR) bool {
+	after := v.Cfg.Deck.StaleAfter.Duration
+	return after > 0 && !p.CreatedAt.IsZero() && v.Now.Sub(p.CreatedAt) > after
+}
+
+// Flaky reports whether every failed check of p is in ci.known_flaky.
+func (v View) Flaky(p model.PR) bool {
+	if p.CI != model.CIFail || len(p.FailedJobs) == 0 {
+		return false
+	}
+	for _, j := range p.FailedJobs {
+		known := false
+		for _, k := range v.Cfg.CI.KnownFlaky {
+			if strings.EqualFold(j, k) {
+				known = true
+			}
+		}
+		if !known {
+			return false
+		}
+	}
+	return true
 }
 
 // Topic is the plain-language topic, never just a key: the Jira summary,
@@ -337,6 +370,9 @@ func (v View) Next(p model.PR) string {
 	case StDraft:
 		return "finish draft"
 	case StFail:
+		if v.Flaky(p) {
+			return "known flaky CI · r rerun"
+		}
 		return "CI failing · r rerun"
 	case StRunning:
 		return "CI running"
@@ -353,6 +389,11 @@ func (v View) Next(p model.PR) string {
 			return "nudge reviewers · P copy nudge"
 		}
 		return "awaiting review"
+	case StBlocked:
+		return "blocked by branch protection · check required reviews/checks"
+	}
+	if p.MergeState == "BEHIND" {
+		return "behind base · update the branch on GitHub"
 	}
 	if v.Critical(p) {
 		if w := v.Window(); w.Enabled && !w.Open {

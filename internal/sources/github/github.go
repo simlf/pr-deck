@@ -75,8 +75,8 @@ fragment pr on PullRequest {
   reviews(last: 20) { nodes { author { __typename login } state body submittedAt url
     comments(first: 10) { nodes { author { __typename login } body path line originalLine createdAt url } } } }
   commits(last: 1) { nodes { commit { committedDate statusCheckRollup { state
-    contexts(first: 50) { nodes { __typename
-      ... on CheckRun { conclusion checkSuite { workflowRun { databaseId } } } } } } } } }
+    contexts(first: 100) { nodes { __typename
+      ... on CheckRun { name conclusion checkSuite { workflowRun { databaseId } } } } } } } } }
 }`
 
 const searchQuery = `query($q: String!, $after: String) {
@@ -136,6 +136,7 @@ type gqlPR struct {
 					Contexts struct {
 						Nodes []struct {
 							Typename   string `json:"__typename"`
+							Name       string `json:"name"`
 							Conclusion string `json:"conclusion"`
 							CheckSuite *struct {
 								WorkflowRun *struct{ DatabaseID int64 } `json:"workflowRun"`
@@ -163,16 +164,22 @@ type gqlComment struct {
 }
 
 // comments keeps what people other than the author wrote, newest first:
-// issue comments, inline comments, and reviews that request changes or say something.
-func (g gqlPR) comments(author string) []model.Comment {
-	var out []model.Comment
+// issue comments, inline comments, and reviews that request changes or say
+// something. mine is the author's own latest comment or review.
+func (g gqlPR) comments(author string) (out []model.Comment, mine time.Time) {
 	add := func(c gqlComment) {
-		if c.Author == nil || c.Author.Typename == "Bot" || c.Author.Login == author {
-			return
-		}
 		at := c.CreatedAt
 		if at.IsZero() {
 			at = c.SubmittedAt
+		}
+		if c.Author != nil && c.Author.Login == author && author != "" {
+			if at.After(mine) {
+				mine = at
+			}
+			return
+		}
+		if c.Author == nil || c.Author.Typename == "Bot" {
+			return
 		}
 		line := c.Line
 		if line == 0 {
@@ -184,6 +191,9 @@ func (g gqlPR) comments(author string) []model.Comment {
 		add(c)
 	}
 	for _, r := range g.Reviews.Nodes {
+		if r.Author != nil && r.Author.Login == author && r.SubmittedAt.After(mine) {
+			mine = r.SubmittedAt
+		}
 		switch {
 		case r.State == "CHANGES_REQUESTED" && strings.TrimSpace(r.Body) == "":
 			r.Body = "requested changes"
@@ -196,7 +206,7 @@ func (g gqlPR) comments(author string) []model.Comment {
 		}
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].At.After(out[j].At) })
-	return out
+	return out, mine
 }
 
 func (g gqlPR) toModel() model.PR {
@@ -211,7 +221,7 @@ func (g gqlPR) toModel() model.PR {
 	for _, l := range g.Labels.Nodes {
 		p.Labels = append(p.Labels, l.Name)
 	}
-	p.Comments = g.comments(p.Author)
+	p.Comments, p.AuthorActiveAt = g.comments(p.Author)
 	want := map[string]string{model.ReviewApproved: "APPROVED", model.ReviewChanges: "CHANGES_REQUESTED"}[g.ReviewDecision]
 	reviews := g.LatestReviews.Nodes
 	sort.Slice(reviews, func(i, j int) bool { return reviews[i].SubmittedAt.After(reviews[j].SubmittedAt) })
@@ -234,23 +244,37 @@ func (g gqlPR) toModel() model.PR {
 			case "PENDING", "EXPECTED":
 				p.CI = model.CIRunning
 			}
-			seen := map[int64]bool{}
+			var failed, cancelled []int64
+			var failedJobs, cancelledJobs []string
 			for _, ctx := range c.StatusCheckRollup.Contexts.Nodes {
 				if ctx.Typename != "CheckRun" || ctx.CheckSuite == nil || ctx.CheckSuite.WorkflowRun == nil {
 					continue
 				}
+				id := ctx.CheckSuite.WorkflowRun.DatabaseID
 				switch ctx.Conclusion {
-				case "FAILURE", "TIMED_OUT", "STARTUP_FAILURE", "CANCELLED":
-					id := ctx.CheckSuite.WorkflowRun.DatabaseID
-					if !seen[id] {
-						seen[id] = true
-						p.FailedRuns = append(p.FailedRuns, id)
-					}
+				case "FAILURE", "TIMED_OUT", "STARTUP_FAILURE":
+					failed, failedJobs = addRun(failed, id), append(failedJobs, ctx.Name)
+				case "CANCELLED":
+					cancelled, cancelledJobs = addRun(cancelled, id), append(cancelledJobs, ctx.Name)
 				}
+			}
+			// A run cancelled by a newer push is not a failure; rerun it only when nothing else failed.
+			p.FailedRuns, p.FailedJobs = failed, failedJobs
+			if len(failed) == 0 {
+				p.FailedRuns, p.FailedJobs = cancelled, cancelledJobs
 			}
 		}
 	}
 	return p
+}
+
+func addRun(ids []int64, id int64) []int64 {
+	for _, x := range ids {
+		if x == id {
+			return ids
+		}
+	}
+	return append(ids, id)
 }
 
 func firstLine(s string, max int) string {

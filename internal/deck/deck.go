@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/simlf/pr-deck/internal/cache"
@@ -102,31 +103,44 @@ func (d *Deck) Refresh(ctx context.Context) (model.Snapshot, error) {
 	}
 	open, err := d.GH.SearchOpen(ctx)
 	if err != nil {
+		d.markOffline(now)
 		return model.Snapshot{}, err
 	}
 	snap := model.Snapshot{At: now, Build: d.Build}
 	for i := range open {
 		d.enrichBasic(&open[i])
 	}
+	slow, cancel := context.WithTimeout(ctx, slowBudget)
+	defer cancel()
 	// Fetch PRs referenced by Merge-after or manual pairs (often merged).
-	for _, key := range pairs.ReferencedMissing(open, st.Pairs) {
-		repo, n, ok := splitKey(key)
+	missing := pairs.ReferencedMissing(open, st.Pairs)
+	sibs := make([]*model.PR, len(missing))
+	var mu sync.Mutex
+	each(len(missing), func(i int) {
+		repo, n, ok := splitKey(missing[i])
 		if !ok {
-			continue
+			return
 		}
-		sib, err := d.GH.Get(ctx, repo, n)
+		sib, err := d.GH.Get(slow, repo, n)
 		if err != nil {
-			snap.Errors = append(snap.Errors, fmt.Sprintf("sibling %s: %v", key, err))
-			continue
+			mu.Lock()
+			snap.Errors = append(snap.Errors, fmt.Sprintf("sibling %s: %v", missing[i], err))
+			mu.Unlock()
+			return
 		}
 		d.enrichBasic(&sib)
 		sib.Sibling = true
-		open = append(open, sib)
+		sibs[i] = &sib
+	})
+	for _, s := range sibs {
+		if s != nil {
+			open = append(open, *s)
+		}
 	}
 	snap.Errors = append(snap.Errors, d.enrichTickets(ctx, open, prev, now)...)
 	snap.Errors = append(snap.Errors, d.enrichWhy(open)...)
 	snap.Errors = append(snap.Errors, d.enrichPosted(ctx, open, prev, now)...)
-	snap.Errors = append(snap.Errors, d.enrichPlans(ctx, open, prev, now)...)
+	snap.Errors = append(snap.Errors, d.enrichPlans(slow, open, prev, now)...)
 	pairs.Link(open, d.Cfg.Envs, st.Pairs)
 	sort.SliceStable(open, func(i, j int) bool { return open[i].Key() < open[j].Key() })
 	snap.PRs = open
@@ -146,6 +160,43 @@ func (d *Deck) Refresh(ctx context.Context) (model.Snapshot, error) {
 		snap.Errors = append(snap.Errors, "cache: "+err.Error())
 	}
 	return snap, nil
+}
+
+// slowBudget caps the per-PR GitHub calls (siblings, plans) of one refresh.
+const slowBudget = 45 * time.Second
+
+// workers is how many per-PR GitHub calls run at once.
+const workers = 4
+
+// each runs fn(0..n-1) on a small worker pool.
+func each(n int, fn func(i int)) {
+	jobs := make(chan int)
+	var wg sync.WaitGroup
+	for w := 0; w < min(workers, n); w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range jobs {
+				fn(i)
+			}
+		}()
+	}
+	for i := 0; i < n; i++ {
+		jobs <- i
+	}
+	close(jobs)
+	wg.Wait()
+}
+
+// markOffline stamps the cached snapshot with when refreshes started failing.
+func (d *Deck) markOffline(now time.Time) {
+	_ = cache.Update(d.SnapshotPath(), func(snap model.Snapshot, ok bool) (model.Snapshot, bool) {
+		if !ok || !snap.OfflineSince.IsZero() {
+			return snap, false
+		}
+		snap.OfflineSince = now
+		return snap, true
+	})
 }
 
 // RefreshPR re-reads key's CI from GitHub and writes it into the cached
@@ -289,22 +340,29 @@ func (d *Deck) enrichPosted(ctx context.Context, prs []model.PR, prev model.Snap
 // enrichPlans re-reads plan comments when the PR changed or plansTTL passed.
 func (d *Deck) enrichPlans(ctx context.Context, prs []model.PR, prev model.Snapshot, now time.Time) []string {
 	var errs []string
-	for i := range prs {
+	var mu sync.Mutex
+	each(len(prs), func(i int) {
 		p := &prs[i]
 		if p.Merged() || p.Sibling {
-			continue
+			return
 		}
-		if old, ok := prev.Find(p.Key()); ok && old.UpdatedAt.Equal(p.UpdatedAt) && now.Sub(old.PlansChecked) < plansTTL {
+		old, had := prev.Find(p.Key())
+		if had && old.UpdatedAt.Equal(p.UpdatedAt) && now.Sub(old.PlansChecked) < plansTTL {
 			p.Plans, p.PlansChecked = old.Plans, old.PlansChecked
-			continue
+			return
 		}
 		pl, err := d.GH.Plans(ctx, *p)
 		if err != nil {
+			if had { // keep the last plans until a fetch works
+				p.Plans, p.PlansChecked = old.Plans, old.PlansChecked
+			}
+			mu.Lock()
 			errs = append(errs, "plans: "+err.Error())
-			continue
+			mu.Unlock()
+			return
 		}
 		p.Plans, p.PlansChecked = pl, now
-	}
+	})
 	return dedupe(errs)
 }
 

@@ -12,6 +12,7 @@ import (
 // Kind of review state.
 const (
 	Approved  = "approved"
+	Merged    = "merged"
 	Changes   = "changes"
 	Draft     = "draft"
 	NotPosted = "not_posted"
@@ -36,7 +37,9 @@ func (i Info) Needed() bool { return i.Kind == NotPosted || i.Kind == Overdue }
 // channel ("" when tracking is off).
 func Of(p model.PR, channel string, remindAfter time.Duration, now time.Time) Info {
 	switch {
-	case p.Merged() || p.ReviewDecision == model.ReviewApproved:
+	case p.Merged():
+		return Info{Merged, "✓", "merged", "merged"}
+	case p.ReviewDecision == model.ReviewApproved:
 		who := p.Reviewer
 		if who == "" {
 			who = "a reviewer"

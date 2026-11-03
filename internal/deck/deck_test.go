@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -26,12 +27,17 @@ type fakeGH struct {
 	plans     map[string][]model.Plan
 	planReads int
 	// onSearch runs inside Refresh, after it read the cached snapshot.
-	onSearch func()
+	onSearch  func()
+	searchErr error
+	mu        sync.Mutex
 }
 
 func (f *fakeGH) SearchOpen(context.Context) ([]model.PR, error) {
 	if f.onSearch != nil {
 		f.onSearch()
+	}
+	if f.searchErr != nil {
+		return nil, f.searchErr
 	}
 	var out []model.PR
 	for _, p := range f.prs {
@@ -64,6 +70,8 @@ func (f *fakeGH) RerunFailed(_ context.Context, p model.PR) (int, error) {
 }
 
 func (f *fakeGH) Plans(_ context.Context, p model.PR) ([]model.Plan, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.planReads++
 	return f.plans[p.Key()], nil
 }
@@ -715,5 +723,109 @@ func TestConcurrentRefreshKeepsNewerWrites(t *testing.T) {
 	}
 	if s, _ := d.Cached(); !s.At.Equal(tue1102) {
 		t.Fatalf("an older refresh overwrote a newer snapshot: %v", s.At)
+	}
+}
+
+func TestFlaggedMeansNeedsYou(t *testing.T) {
+	gh := scenario()
+	tf := gh.prs["acme/terraform-modules#203"]
+	d := newDeck(t, gh, tue1102)
+	d.Slack = fakeSlack{
+		"https://github.example/acme/runbooks/pull/88":           tue1102.Add(-6 * 24 * time.Hour),
+		"https://github.example/acme/terraform-modules/pull/203": tue1102.Add(-time.Hour),
+	}
+	v := view(t, d, tue1102)
+	if v.Flagged(get(t, v, tf.Key())) {
+		t.Fatal("posted and not overdue: waits on reviewers, no flag")
+	}
+	if !v.Flagged(get(t, v, "acme/runbooks#88")) {
+		t.Fatal("overdue review needs a nudge: flag")
+	}
+	eng := gh.prs["acme/infra-config#318"]
+	eng.AuthorActiveAt = tue1102.Add(-time.Hour)
+	gh.prs[eng.Key()] = eng
+	v = view(t, d, tue1102)
+	if v.Flagged(get(t, v, eng.Key())) {
+		t.Fatal("my own GitHub comment today counts as a touch")
+	}
+}
+
+func TestBlockedByBranchProtection(t *testing.T) {
+	gh := scenario()
+	eng := gh.prs["acme/infra-config#318"]
+	eng.MergeState = "BLOCKED"
+	gh.prs[eng.Key()] = eng
+	d := newDeck(t, gh, tue1102)
+	v := view(t, d, tue1102)
+	p := get(t, v, eng.Key())
+	if st := v.StateOf(p); st != StBlocked {
+		t.Fatalf("approved + green + BLOCKED = %s, want blocked", st)
+	}
+	if pl := v.PlanMerge(p); pl.Kind != PlanRefuse || !strings.Contains(pl.Message, "branch protection") {
+		t.Fatalf("plan = %+v", pl)
+	}
+	if ok, _ := v.Recheck(p); ok {
+		t.Fatal("scheduled merge must not fire while blocked")
+	}
+	if v.Count().Ready != 0 {
+		t.Fatal("blocked is not ready")
+	}
+}
+
+func TestStaleAndBehindHints(t *testing.T) {
+	gh := scenario()
+	eng := gh.prs["acme/infra-config#318"]
+	eng.CreatedAt = tue1102.Add(-20 * 24 * time.Hour)
+	eng.MergeState = "BEHIND"
+	gh.prs[eng.Key()] = eng
+	d := newDeck(t, gh, tue1102)
+	v := view(t, d, tue1102)
+	if !v.Stale(get(t, v, eng.Key())) || v.Stale(get(t, v, "acme/runbooks#88")) {
+		t.Fatal("stale only past deck.stale_after (14d)")
+	}
+	if n := v.Next(get(t, v, eng.Key())); !strings.Contains(n, "behind base") {
+		t.Fatalf("next = %q", n)
+	}
+}
+
+func TestKnownFlaky(t *testing.T) {
+	v := View{Cfg: config.Config{CI: config.CI{KnownFlaky: []string{"e2e"}}}}
+	if !v.Flaky(model.PR{CI: model.CIFail, FailedJobs: []string{"E2E"}}) {
+		t.Fatal("only known flaky jobs failed: flaky")
+	}
+	if v.Flaky(model.PR{CI: model.CIFail, FailedJobs: []string{"e2e", "lint"}}) {
+		t.Fatal("a real failure is not flaky")
+	}
+	if !strings.Contains(v.Next(model.PR{State: "OPEN", CI: model.CIFail, FailedJobs: []string{"e2e"}}), "flaky") {
+		t.Fatal("next names the flaky CI")
+	}
+}
+
+func TestOfflineSince(t *testing.T) {
+	gh := scenario()
+	d := newDeck(t, gh, tue1102)
+	view(t, d, tue1102)
+	gh.searchErr = fmt.Errorf("dial tcp: no such host")
+	if _, err := d.Refresh(context.Background()); err == nil {
+		t.Fatal("want error")
+	}
+	d.Now = func() time.Time { return tue1102.Add(time.Minute) }
+	d.Refresh(context.Background())
+	if s, _ := d.Cached(); !s.OfflineSince.Equal(tue1102) {
+		t.Fatalf("offline since = %v, want the first failure", s.OfflineSince)
+	}
+	gh.searchErr = nil
+	if s, _ := d.Refresh(context.Background()); !s.OfflineSince.IsZero() {
+		t.Fatal("a good refresh clears offline")
+	}
+}
+
+func TestEachRunsAll(t *testing.T) {
+	var mu sync.Mutex
+	seen := map[int]bool{}
+	each(10, func(i int) { mu.Lock(); seen[i] = true; mu.Unlock() })
+	each(0, func(int) { t.Fatal("no work") })
+	if len(seen) != 10 {
+		t.Fatalf("ran %d of 10", len(seen))
 	}
 }

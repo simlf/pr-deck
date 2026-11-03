@@ -101,6 +101,8 @@ func (v View) blocker(p model.PR) string {
 	case p.ReviewDecision != model.ReviewApproved:
 		r := v.Review(p)
 		return r.Glyph + " can't merge " + p.Ref() + ": " + r.Long
+	case p.MergeState == "BLOCKED" && p.CI == model.CIPass:
+		return p.Ref() + " is blocked by branch protection: check required reviews, checks or unresolved conversations on GitHub"
 	}
 	return ""
 }
@@ -143,6 +145,8 @@ func (v View) Recheck(p model.PR) (bool, string) {
 		return false, "merge conflicts"
 	case p.MergeState == "BEHIND":
 		return false, "branch behind base and GitHub requires it up to date"
+	case p.MergeState == "BLOCKED" && p.CI == model.CIPass:
+		return false, "blocked by branch protection"
 	case p.Draft:
 		return false, "draft"
 	}

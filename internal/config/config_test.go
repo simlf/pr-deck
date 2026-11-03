@@ -59,3 +59,16 @@ func TestSecretPrefersEnvAndNeverConfig(t *testing.T) {
 		t.Fatalf("nothing configured: %q", got)
 	}
 }
+
+func TestDurationDays(t *testing.T) {
+	var d Duration
+	if err := d.UnmarshalText([]byte("14d")); err != nil || d.Duration != 14*24*time.Hour {
+		t.Fatalf("14d = %v, %v", d.Duration, err)
+	}
+	if err := d.UnmarshalText([]byte("90m")); err != nil || d.Duration != 90*time.Minute {
+		t.Fatalf("90m = %v, %v", d.Duration, err)
+	}
+	if Default().Deck.StaleAfter.Duration != 14*24*time.Hour {
+		t.Fatal("stale_after defaults to 14d")
+	}
+}

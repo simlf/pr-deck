@@ -272,6 +272,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case snapMsg:
 		m.busy = ""
 		if msg.err != nil {
+			m.reload() // picks up the offline mark
 			m.setErr(fmt.Errorf("refresh: %w", msg.err))
 			return m, nil
 		}
@@ -477,7 +478,9 @@ func (m *Model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.copy(m.summary(p), "copied summary for "+p.Ref(), p.Key())
 	case "P":
 		switch {
-		case p.ReviewDecision == model.ReviewApproved || p.Merged():
+		case p.Merged():
+			m.say(p.Ref() + " is already merged")
+		case p.ReviewDecision == model.ReviewApproved:
 			m.say(p.Ref() + " is already approved")
 		case m.dk.Slack == nil:
 			m.copy(m.reviewRequest(p), "copied review request for "+m.channel(), p.Key())

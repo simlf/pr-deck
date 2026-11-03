@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/mattn/go-runewidth"
 
 	"github.com/simlf/pr-deck/internal/deck"
@@ -34,7 +35,11 @@ var (
 	sSel     = lipgloss.NewStyle().Reverse(true)
 	sMsg     = lipgloss.NewStyle().Foreground(cYellow)
 	sErr     = lipgloss.NewStyle().Foreground(cRed)
+	sStruck  = lipgloss.NewStyle().Foreground(cDim).Strikethrough(true)
 )
+
+// struck redraws a rendered row dim and struck through, for merged PRs.
+func struck(row string) string { return sStruck.Render(xansi.Strip(row)) }
 
 func stateStyle(st string) lipgloss.Style {
 	switch st {
@@ -42,7 +47,7 @@ func stateStyle(st string) lipgloss.Style {
 		return sGreen
 	case deck.StFail, deck.StConflict:
 		return sRed
-	case deck.StRunning:
+	case deck.StRunning, deck.StBlocked:
 		return sYellow
 	case deck.StWaiting, deck.StHeld:
 		return sMagenta

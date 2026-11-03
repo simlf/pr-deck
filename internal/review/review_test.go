@@ -18,7 +18,7 @@ func TestOf(t *testing.T) {
 		kind string
 	}{
 		{"approved", model.PR{ReviewDecision: model.ReviewApproved, Reviewer: "@dana"}, "#team-reviews", Approved},
-		{"merged counts as approved", model.PR{State: "MERGED"}, "#team-reviews", Approved},
+		{"merged never shows approved", model.PR{State: "MERGED", ReviewDecision: model.ReviewApproved}, "#team-reviews", Merged},
 		{"changes", model.PR{ReviewDecision: model.ReviewChanges, Reviewer: "@lee", ReviewNote: "lower burst"}, "#team-reviews", Changes},
 		{"draft", model.PR{Draft: true}, "#team-reviews", Draft},
 		{"no tracking", model.PR{}, "", Waiting},
