@@ -25,9 +25,14 @@ type fakeGH struct {
 
 	plans     map[string][]model.Plan
 	planReads int
+	// onSearch runs inside Refresh, after it read the cached snapshot.
+	onSearch func()
 }
 
 func (f *fakeGH) SearchOpen(context.Context) ([]model.PR, error) {
+	if f.onSearch != nil {
+		f.onSearch()
+	}
 	var out []model.PR
 	for _, p := range f.prs {
 		if p.State == "OPEN" {
@@ -601,5 +606,114 @@ func TestPostReviewOnlyOnce(t *testing.T) {
 	d.Slack = nil
 	if err := d.PostReview(context.Background(), tf, "x"); err == nil {
 		t.Fatal("posting without Slack must fail clearly")
+	}
+}
+
+func TestClosedSiblingIsSaid(t *testing.T) {
+	gh := scenario()
+	eng := gh.prs["acme/infra-config#318"]
+	eng.State = "CLOSED"
+	gh.prs[eng.Key()] = eng
+	d := newDeck(t, gh, tue1102)
+	v := view(t, d, tue1102)
+	prod := get(t, v, "acme/infra-config#319")
+	if s, next := v.StateOf(prod), v.Next(prod); s != StWaiting || !strings.Contains(next, "closed without merging") {
+		t.Fatalf("closed sibling: %s %q", s, next)
+	}
+	if pl := v.PlanMerge(prod); pl.Kind != PlanRefuse || !strings.Contains(pl.Message, "#318 was closed without merging") {
+		t.Fatalf("m must not offer to merge a closed sibling: %+v", pl)
+	}
+}
+
+func TestFanInWaitsOnEveryMergeAfter(t *testing.T) {
+	gh := scenario()
+	eng := gh.prs["acme/infra-config#318"]
+	eng.State = "MERGED"
+	gh.prs[eng.Key()] = eng
+	prod := gh.prs["acme/infra-config#319"]
+	prod.Body = "- Merge-after: #318\n- Merge-after: https://github.example/acme/runbooks/pull/88"
+	gh.prs[prod.Key()] = prod
+	d := newDeck(t, gh, tue1102)
+	v := view(t, d, tue1102)
+	p := get(t, v, prod.Key())
+	if s := v.StateOf(p); s != StWaiting || !strings.Contains(v.Next(p), "runbooks#88") {
+		t.Fatalf("second Merge-after must block: %s %q", s, v.Next(p))
+	}
+	if pl := v.PlanMerge(p); pl.Kind != PlanRefuse || !strings.Contains(pl.Message, "runbooks#88") {
+		t.Fatalf("plan: %+v", pl)
+	}
+	if ok, why := v.Recheck(p); ok || !strings.Contains(why, "runbooks#88") {
+		t.Fatalf("recheck: %v %q", ok, why)
+	}
+	rb := gh.prs["acme/runbooks#88"]
+	rb.State = "MERGED"
+	gh.prs[rb.Key()] = rb
+	v = view(t, d, tue1102)
+	if s := v.StateOf(get(t, v, prod.Key())); s != StReady {
+		t.Fatalf("all deps merged: %s", s)
+	}
+}
+
+func TestFireDueWithoutCI(t *testing.T) {
+	gh := scenario()
+	eng := gh.prs["acme/infra-config#318"]
+	eng.State = "MERGED"
+	gh.prs[eng.Key()] = eng
+	prod := gh.prs["acme/infra-config#319"]
+	prod.CI = model.CINone
+	gh.prs[prod.Key()] = prod
+	d := newDeck(t, gh, fri1000)
+	d.Schedule(prod, mon0930)
+	rules, _ := d.Rules(context.Background())
+	ev, _ := d.FireDue(context.Background(), rules, mon0930.Add(time.Minute))
+	if len(ev) != 1 || !strings.Contains(ev[0].Title, "scheduled merge ran") || len(gh.merged) != 1 {
+		t.Fatalf("a PR with no CI must merge like m allows: %+v", ev)
+	}
+}
+
+func TestFireDueDropsClosedPR(t *testing.T) {
+	gh := scenario()
+	d := newDeck(t, gh, fri1000)
+	tf := gh.prs["acme/infra-config#318"]
+	d.Schedule(tf, mon0930)
+	tf.State = "CLOSED"
+	gh.prs[tf.Key()] = tf
+	rules, _ := d.Rules(context.Background())
+	ev, _ := d.FireDue(context.Background(), rules, mon0930.Add(time.Minute))
+	if len(ev) != 1 || !strings.Contains(ev[0].Title, "closed without merging") || len(gh.merged) != 0 {
+		t.Fatalf("closed PR: %+v merged=%v", ev, gh.merged)
+	}
+	if st, _ := d.Store.Load(); len(st.Schedules) != 0 {
+		t.Fatalf("schedule must drop: %+v", st.Schedules)
+	}
+}
+
+func TestConcurrentRefreshKeepsNewerWrites(t *testing.T) {
+	gh := scenario()
+	d := newDeck(t, gh, tue1102)
+	d.Slack = &postingSlack{fakeSlack: d.Slack.(fakeSlack)}
+	if _, err := d.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	tf := gh.prs["acme/terraform-modules#203"]
+	gh.onSearch = func() {
+		gh.onSearch = nil
+		if err := d.PostReview(context.Background(), tf, "Review please"); err != nil {
+			t.Error(err)
+		}
+	}
+	if _, err := d.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	s, _ := d.Cached()
+	if p, _ := s.Find(tf.Key()); p.Posted == nil {
+		t.Fatal("a refresh in flight must not drop a post recorded meanwhile")
+	}
+	d.Now = func() time.Time { return tue1102.Add(-time.Minute) }
+	if _, err := d.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ := d.Cached(); !s.At.Equal(tue1102) {
+		t.Fatalf("an older refresh overwrote a newer snapshot: %v", s.At)
 	}
 }

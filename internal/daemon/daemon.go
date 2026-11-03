@@ -139,6 +139,13 @@ func (d *Daemon) Run(ctx context.Context) error {
 func (d *Daemon) Tick(ctx context.Context) error {
 	now := d.Deck.Now()
 	snap, err := d.Deck.Refresh(ctx)
+	var live map[string]bool
+	if err == nil {
+		live = map[string]bool{}
+		for _, p := range snap.PRs {
+			live[p.Key()] = true
+		}
+	}
 	if err != nil {
 		cached, ok := d.Deck.Cached()
 		if !ok {
@@ -171,7 +178,7 @@ func (d *Daemon) Tick(ctx context.Context) error {
 		return err
 	}
 	v := deck.View{Snap: snap, State: st, Rules: rules, Cfg: d.Deck.Cfg, Now: now}
-	d.send(append(fired, v.Notices()...), now)
+	d.send(append(fired, v.Notices()...), now, live)
 	if d.Host != nil {
 		if err := d.publish(v); err != nil {
 			d.logf("herdr tokens: %v", err)
@@ -182,7 +189,7 @@ func (d *Daemon) Tick(ctx context.Context) error {
 
 // send delivers each event once, recording it in state first so a crash
 // never repeats a toast.
-func (d *Daemon) send(events []deck.Event, now time.Time) {
+func (d *Daemon) send(events []deck.Event, now time.Time, live map[string]bool) {
 	var fresh []deck.Event
 	_, _ = d.Deck.Store.Update(func(s *state.State) error {
 		for _, e := range events {
@@ -190,7 +197,7 @@ func (d *Daemon) send(events []deck.Event, now time.Time) {
 				fresh = append(fresh, e)
 			}
 		}
-		s.Prune(now, 14*24*time.Hour)
+		s.Prune(now, 14*24*time.Hour, live)
 		return nil
 	})
 	for _, e := range fresh {

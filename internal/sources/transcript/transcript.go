@@ -59,19 +59,42 @@ func (ix *Index) Save(path string) error {
 	if err != nil {
 		return err
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
-}
-
-// Scan walks dir/*/*.jsonl and indexes new or changed files. webHost limits
-// matches to PR URLs on that host (e.g. github.com).
-func (ix *Index) Scan(dir, webHost string) error {
-	files, err := filepath.Glob(filepath.Join(dir, "*", "*.jsonl"))
+	tmp, err := os.CreateTemp(filepath.Dir(path), "why-*.json")
 	if err != nil {
 		return err
+	}
+	if _, err := tmp.Write(b); err != nil {
+		tmp.Close()
+		os.Remove(tmp.Name())
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmp.Name())
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
+}
+
+// maxPrompt caps the prompt a file mark keeps to resume a scan.
+const maxPrompt = 4096
+
+// Scan walks dir/*/*.jsonl, indexes new or changed files and forgets files
+// that are gone. webHost limits matches to PR URLs on that host (e.g.
+// github.com). changed reports whether the index needs saving.
+func (ix *Index) Scan(dir, webHost string) (changed bool, err error) {
+	files, err := filepath.Glob(filepath.Join(dir, "*", "*.jsonl"))
+	if err != nil {
+		return false, err
+	}
+	live := map[string]bool{}
+	for _, f := range files {
+		live[f] = true
+	}
+	for f := range ix.Files {
+		if !live[f] {
+			delete(ix.Files, f)
+			changed = true
+		}
 	}
 	re := prURLRe(webHost)
 	for _, f := range files {
@@ -92,8 +115,9 @@ func (ix *Index) Scan(dir, webHost string) error {
 		}
 		mark.Size, mark.ModTime = st.Size(), st.ModTime()
 		ix.Files[f] = mark
+		changed = true
 	}
-	return nil
+	return changed, nil
 }
 
 // Lookup returns the why for key.
@@ -189,7 +213,7 @@ func (ix *Index) scanFile(path string, re *regexp.Regexp, from fileMark) (fileMa
 			}
 		}
 	}
-	mark := fileMark{Offset: offset, LastPrompt: lastPrompt}
+	mark := fileMark{Offset: offset, LastPrompt: capPrompt(lastPrompt)}
 	for id := range creates {
 		mark.Creates = append(mark.Creates, id)
 	}
@@ -212,6 +236,13 @@ func promptText(text string, blocks []block) string {
 		}
 	}
 	return clean(strings.Join(parts, "\n"))
+}
+
+func capPrompt(s string) string {
+	if len(s) <= maxPrompt {
+		return s
+	}
+	return strings.ToValidUTF8(s[:maxPrompt], "")
 }
 
 func clean(s string) string {

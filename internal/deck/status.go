@@ -46,6 +46,21 @@ func (v View) Sibling(p model.PR) (model.PR, bool) {
 	return v.Snap.Find(p.Pair.After)
 }
 
+// waitingOn returns the first PR p must merge after that is not merged yet:
+// the chain sibling, then any further Merge-after: PR. key is "" when none
+// waits; ok is false when pr-deck cannot see that PR.
+func (v View) waitingOn(p model.PR) (key string, dep model.PR, ok bool) {
+	if p.Pair == nil || p.Pair.After == "" {
+		return "", model.PR{}, false
+	}
+	for _, k := range append([]string{p.Pair.After}, p.Pair.Also...) {
+		if dep, ok := v.Snap.Find(k); !ok || !dep.Merged() {
+			return k, dep, ok
+		}
+	}
+	return "", model.PR{}, false
+}
+
 // StateOf derives p's state.
 func (v View) StateOf(p model.PR) string {
 	switch {
@@ -56,10 +71,8 @@ func (v View) StateOf(p model.PR) string {
 	case v.Held(p):
 		return StHeld
 	}
-	if p.Pair != nil && p.Pair.After != "" {
-		if sib, ok := v.Sibling(p); !ok || !sib.Merged() {
-			return StWaiting
-		}
+	if key, _, _ := v.waitingOn(p); key != "" {
+		return StWaiting
 	}
 	switch {
 	case p.Draft:
@@ -313,10 +326,14 @@ func (v View) Next(p model.PR) string {
 		}
 		return "‖ " + v.holdText(p) + " · m schedule"
 	case StWaiting:
-		if sib, ok := v.Sibling(p); ok {
-			return "waits on " + orderMark(sib) + " " + sib.Ref()
+		key, sib, ok := v.waitingOn(p)
+		switch {
+		case !ok:
+			return "waits on " + key
+		case sib.State == "CLOSED":
+			return "waits on " + sib.Ref() + ", closed without merging · fix Merge-after or p to re-pair"
 		}
-		return "waits on " + p.Pair.After
+		return "waits on " + orderMark(sib) + " " + sib.Ref()
 	case StDraft:
 		return "finish draft"
 	case StFail:

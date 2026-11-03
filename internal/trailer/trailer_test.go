@@ -1,6 +1,7 @@
 package trailer
 
 import (
+	"reflect"
 	"testing"
 	"time"
 )
@@ -13,24 +14,32 @@ func TestPurpose(t *testing.T) {
 	if got := Purpose("no trailer here"); got != "" {
 		t.Fatalf("Purpose without trailer = %q", got)
 	}
+	for _, b := range []string{
+		"## TLDR\n- Purpose: Add a PDB.\n- Other bullet",
+		"* **Purpose:** Add a PDB.",
+		"**Purpose**: Add a PDB.",
+	} {
+		if got := Purpose(b); got != "Add a PDB." {
+			t.Errorf("Purpose(%q) = %q", b, got)
+		}
+	}
 }
 
 func TestMergeAfter(t *testing.T) {
 	cases := []struct {
 		body string
-		repo string
-		n    int
-		ok   bool
+		want []Dep
 	}{
-		{"Merge-after: #318", "", 318, true},
-		{"x\nmerge-after: acme/infra-config#12\n", "acme/infra-config", 12, true},
-		{"Merge-after: soon", "", 0, false},
-		{"", "", 0, false},
+		{"Merge-after: #318", []Dep{{"", 318}}},
+		{"x\nmerge-after: acme/infra-config#12\n", []Dep{{"acme/infra-config", 12}}},
+		{"- **Merge-after:** https://github.com/acme/infra/pull/7", []Dep{{"acme/infra", 7}}},
+		{"Merge-after: #1\n- Merge-after: acme/other#2\n", []Dep{{"", 1}, {"acme/other", 2}}},
+		{"Merge-after: soon", nil},
+		{"", nil},
 	}
 	for _, c := range cases {
-		repo, n, ok := MergeAfter(c.body)
-		if repo != c.repo || n != c.n || ok != c.ok {
-			t.Errorf("MergeAfter(%q) = %q %d %v, want %q %d %v", c.body, repo, n, ok, c.repo, c.n, c.ok)
+		if got := MergeAfter(c.body); !reflect.DeepEqual(got, c.want) {
+			t.Errorf("MergeAfter(%q) = %v, want %v", c.body, got, c.want)
 		}
 	}
 }

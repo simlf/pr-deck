@@ -38,22 +38,22 @@ func (v View) PlanMerge(p model.PR) Plan {
 	if p.Merged() {
 		return Plan{Kind: PlanRefuse, Message: p.Ref() + " is already merged"}
 	}
+	if p.State == "CLOSED" {
+		return Plan{Kind: PlanRefuse, Message: p.Ref() + " was closed without merging"}
+	}
 	if sch, ok := v.State.Schedules[p.Key()]; ok {
 		return Plan{Kind: PlanCancel, Target: p, Message: fmt.Sprintf("◷ %s is scheduled for %s. Cancel the schedule?", p.Ref(), window.When(v.Now, sch.At))}
 	}
-	if p.Pair != nil && p.Pair.After != "" {
-		sib, ok := v.Sibling(p)
+	if key, sib, ok := v.waitingOn(p); key != "" {
 		if !ok {
-			return Plan{Kind: PlanRefuse, Message: fmt.Sprintf("%s waits on %s, which pr-deck cannot see", p.Ref(), p.Pair.After)}
+			return Plan{Kind: PlanRefuse, Message: fmt.Sprintf("%s waits on %s, which pr-deck cannot see", p.Ref(), key)}
 		}
-		if !sib.Merged() {
-			sp := v.PlanMerge(sib)
-			head := fmt.Sprintf("◇ %s is %s: %s %s %s is not merged.", p.Ref(), orderMark(p), envOr(sib), orderMark(sib), sib.Ref())
-			if sp.Kind == PlanMerge {
-				return Plan{Kind: PlanSibling, Target: sib, Message: head + " Merge " + orderMark(sib) + " first?"}
-			}
-			return Plan{Kind: PlanRefuse, Message: head + " " + sp.Message}
+		sp := v.PlanMerge(sib)
+		head := fmt.Sprintf("◇ %s is %s: %s %s %s is not merged.", p.Ref(), orderMark(p), envOr(sib), orderMark(sib), sib.Ref())
+		if sp.Kind == PlanMerge {
+			return Plan{Kind: PlanSibling, Target: sib, Message: head + " Merge " + orderMark(sib) + " first?"}
 		}
+		return Plan{Kind: PlanRefuse, Message: head + " " + sp.Message}
 	}
 	if r := v.blocker(p); r != "" {
 		return Plan{Kind: PlanRefuse, Message: r}
@@ -128,13 +128,14 @@ func (v View) Recheck(p model.PR) (bool, string) {
 	if v.Held(p) {
 		return false, v.holdText(p)
 	}
-	if p.Pair != nil && p.Pair.After != "" {
-		if sib, ok := v.Sibling(p); !ok || !sib.Merged() {
-			return false, "earlier sibling " + p.Pair.After + " is not merged"
-		}
+	if p.State == "CLOSED" {
+		return false, "closed without merging"
+	}
+	if key, _, _ := v.waitingOn(p); key != "" {
+		return false, "earlier sibling " + key + " is not merged"
 	}
 	switch {
-	case p.CI != model.CIPass:
+	case p.CI == model.CIFail || p.CI == model.CIRunning:
 		return false, "CI is " + p.CI
 	case p.ReviewDecision != model.ReviewApproved:
 		return false, "no approval"
@@ -259,13 +260,13 @@ func (d *Deck) PostReview(ctx context.Context, p model.PR, text string) error {
 		return err
 	}
 	now := d.Now()
-	if snap, ok := d.Cached(); ok {
+	_ = cache.Update(d.SnapshotPath(), func(snap model.Snapshot, ok bool) (model.Snapshot, bool) {
 		for i := range snap.PRs {
 			if snap.PRs[i].Key() == p.Key() {
 				snap.PRs[i].Posted, snap.PRs[i].PostedKnown, snap.PRs[i].PostedChecked = &now, true, now
 			}
 		}
-		_ = cache.Save(d.SnapshotPath(), snap)
-	}
+		return snap, ok
+	})
 	return d.Touch(p.Key())
 }

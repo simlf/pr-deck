@@ -88,3 +88,21 @@ func TestReferencedMissing(t *testing.T) {
 		t.Fatalf("missing = %v", got)
 	}
 }
+
+func TestLinkFanIn(t *testing.T) {
+	prs := []model.PR{
+		{Repo: "a/r", Number: 1},
+		{Repo: "a/r", Number: 3, Body: "- Merge-after: #1\n- Merge-after: b/s#2"},
+	}
+	Link(prs, envs, nil)
+	if p := prs[1].Pair; p == nil || p.After != "a/r#1" || len(p.Also) != 1 || p.Also[0] != "b/s#2" {
+		t.Fatalf("fan-in pair = %+v", prs[1].Pair)
+	}
+	if got := ReferencedMissing(prs, nil); len(got) != 1 || got[0] != "b/s#2" {
+		t.Fatalf("missing = %v", got)
+	}
+	Link(prs, envs, map[string]string{"a/r#3": "a/r#1"})
+	if p := prs[1].Pair; p == nil || len(p.Also) != 0 {
+		t.Fatalf("a manual pair replaces the trailer deps: %+v", p)
+	}
+}

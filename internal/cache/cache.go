@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	"github.com/simlf/pr-deck/internal/model"
 )
@@ -36,6 +37,30 @@ func Save(path string, snap model.Snapshot) error {
 		return err
 	}
 	return os.Rename(tmp.Name(), path)
+}
+
+// Update applies fn to the cached snapshot under an exclusive lock, so the
+// daemon and a board never overwrite each other's writes. fn returns the
+// snapshot to save, or false to leave the file as it is.
+func Update(path string, fn func(cur model.Snapshot, ok bool) (model.Snapshot, bool)) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	lock, err := os.OpenFile(path+".lock", os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return err
+	}
+	defer lock.Close()
+	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX); err != nil {
+		return err
+	}
+	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+	cur, ok, _ := Load(path)
+	next, save := fn(cur, ok)
+	if !save {
+		return nil
+	}
+	return Save(path, next)
 }
 
 // Load reads a snapshot; ok is false when none exists yet.

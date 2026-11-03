@@ -70,15 +70,15 @@ func Link(prs []model.PR, envs []string, manual map[string]string) {
 		prs[i].Pair = nil
 	}
 	edges := map[string]edge{}
+	also := map[string][]string{}
 	for _, p := range prs {
-		if repo, n, ok := trailer.MergeAfter(p.Body); ok {
-			if repo == "" {
-				repo = p.Repo
-			}
-			edges[p.Key()] = edge{model.Key(repo, n), "trailer"}
+		if deps := trailerDeps(p); len(deps) > 0 {
+			edges[p.Key()] = edge{deps[0], "trailer"}
+			also[p.Key()] = deps[1:]
 		}
 	}
 	for k, after := range manual {
+		delete(also, k)
 		if after == "" {
 			delete(edges, k)
 			continue
@@ -163,6 +163,7 @@ func Link(prs []model.PR, envs []string, manual map[string]string) {
 		ref := &model.PairRef{ID: root, Order: o, Inferred: inferred[root]}
 		if e, ok := edges[k]; ok {
 			ref.After = e.after
+			ref.Also = also[k]
 			ref.Source = e.source
 		} else {
 			ref.Source = firstSource(edges, k)
@@ -203,11 +204,8 @@ func ReferencedMissing(prs []model.PR, manual map[string]string) []string {
 		}
 	}
 	for _, p := range prs {
-		if repo, n, ok := trailer.MergeAfter(p.Body); ok {
-			if repo == "" {
-				repo = p.Repo
-			}
-			add(model.Key(repo, n))
+		for _, k := range trailerDeps(p) {
+			add(k)
 		}
 	}
 	for k, after := range manual {
@@ -216,5 +214,18 @@ func ReferencedMissing(prs []model.PR, manual map[string]string) []string {
 		}
 	}
 	sort.Strings(out)
+	return out
+}
+
+// trailerDeps returns the keys of p's Merge-after: lines, in body order.
+func trailerDeps(p model.PR) []string {
+	var out []string
+	for _, d := range trailer.MergeAfter(p.Body) {
+		repo := d.Repo
+		if repo == "" {
+			repo = p.Repo
+		}
+		out = append(out, model.Key(repo, d.Number))
+	}
 	return out
 }
