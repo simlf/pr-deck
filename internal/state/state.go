@@ -131,11 +131,25 @@ func (s *State) Once(id string, now time.Time) bool {
 	return true
 }
 
-// Prune drops notification marks older than keep, so the file stays small.
-func (s *State) Prune(now time.Time, keep time.Duration) {
+// Prune drops notification marks and touches older than keep, so the file
+// stays small. A non-nil live set (keys of a fresh snapshot) also drops
+// manual pairs of PRs no longer in it.
+func (s *State) Prune(now time.Time, keep time.Duration, live map[string]bool) {
 	for k, t := range s.Notified {
 		if now.Sub(t) > keep {
 			delete(s.Notified, k)
+		}
+	}
+	for k, t := range s.Touches {
+		if now.Sub(t) > keep {
+			delete(s.Touches, k)
+		}
+	}
+	if live != nil {
+		for k := range s.Pairs {
+			if !live[k] {
+				delete(s.Pairs, k)
+			}
 		}
 	}
 	for k, t := range s.ReviewedUntil {

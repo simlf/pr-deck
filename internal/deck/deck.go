@@ -130,7 +130,19 @@ func (d *Deck) Refresh(ctx context.Context) (model.Snapshot, error) {
 	pairs.Link(open, d.Cfg.Envs, st.Pairs)
 	sort.SliceStable(open, func(i, j int) bool { return open[i].Key() < open[j].Key() })
 	snap.PRs = open
-	if err := cache.Save(d.SnapshotPath(), snap); err != nil {
+	err = cache.Update(d.SnapshotPath(), func(cur model.Snapshot, ok bool) (model.Snapshot, bool) {
+		if ok && cur.Build == snap.Build && cur.At.After(snap.At) {
+			return cur, false // a refresh that started later already saved
+		}
+		for i := range snap.PRs {
+			// A post recorded while this refresh ran (PostReview) never changes.
+			if old, found := cur.Find(snap.PRs[i].Key()); found && old.Posted != nil && snap.PRs[i].Posted == nil {
+				snap.PRs[i].Posted, snap.PRs[i].PostedKnown, snap.PRs[i].PostedChecked = old.Posted, true, old.PostedChecked
+			}
+		}
+		return snap, true
+	})
+	if err != nil {
 		snap.Errors = append(snap.Errors, "cache: "+err.Error())
 	}
 	return snap, nil
@@ -147,16 +159,14 @@ func (d *Deck) RefreshPR(ctx context.Context, key string) (model.PR, error) {
 	if err != nil {
 		return model.PR{}, err
 	}
-	snap, ok := d.Cached()
-	if !ok {
-		return fresh, nil
-	}
-	for i := range snap.PRs {
-		if snap.PRs[i].Key() == key {
-			snap.PRs[i].CI, snap.PRs[i].FailedRuns = fresh.CI, fresh.FailedRuns
+	return fresh, cache.Update(d.SnapshotPath(), func(snap model.Snapshot, ok bool) (model.Snapshot, bool) {
+		for i := range snap.PRs {
+			if snap.PRs[i].Key() == key {
+				snap.PRs[i].CI, snap.PRs[i].FailedRuns = fresh.CI, fresh.FailedRuns
+			}
 		}
-	}
-	return fresh, cache.Save(d.SnapshotPath(), snap)
+		return snap, ok
+	})
 }
 
 func (d *Deck) enrichBasic(p *model.PR) {
@@ -229,11 +239,14 @@ func (d *Deck) enrichWhy(prs []model.PR) []string {
 	path := d.whyPath()
 	ix := transcript.Load(path)
 	if _, err := os.Stat(d.Cfg.Why.TranscriptsDir); err == nil {
-		if err := ix.Scan(d.Cfg.Why.TranscriptsDir, d.Cfg.GitHub.WebHost); err != nil {
+		changed, err := ix.Scan(d.Cfg.Why.TranscriptsDir, d.Cfg.GitHub.WebHost)
+		if err != nil {
 			return []string{"transcripts: " + err.Error()}
 		}
-		if err := ix.Save(path); err != nil {
-			return []string{"transcripts: " + err.Error()}
+		if changed {
+			if err := ix.Save(path); err != nil {
+				return []string{"transcripts: " + err.Error()}
+			}
 		}
 	}
 	for i := range prs {

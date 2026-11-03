@@ -125,6 +125,11 @@ func (d *Deck) FireDue(ctx context.Context, rules window.Rules, now time.Time) (
 			events = append(events, Event{ID: "sched-gone:" + key, Title: "◷ " + fresh.Ref() + " was already merged", Body: "schedule dropped"})
 			continue
 		}
+		if fresh.State == "CLOSED" {
+			d.updateSchedule(key, nil)
+			events = append(events, Event{ID: "sched-closed:" + key, Title: "◷ " + fresh.Ref() + " was closed without merging", Body: "schedule dropped"})
+			continue
+		}
 		mini := []model.PR{fresh}
 		for _, k := range pairs.ReferencedMissing(mini, st.Pairs) {
 			if r, num, ok := splitKey(k); ok {

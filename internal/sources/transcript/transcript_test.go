@@ -9,7 +9,7 @@ import (
 
 func TestScanFindsCreatingPrompt(t *testing.T) {
 	ix := Load(filepath.Join(t.TempDir(), "none.json"))
-	if err := ix.Scan("testdata/projects", "github.example"); err != nil {
+	if _, err := ix.Scan("testdata/projects", "github.example"); err != nil {
 		t.Fatal(err)
 	}
 	w, ok := ix.Lookup("acme/infra-config#318")
@@ -83,5 +83,27 @@ func TestGrowingFileResumesWithContext(t *testing.T) {
 	}
 	if ix.Files[f].Offset != int64(len(part1)+len(rest)) {
 		t.Fatalf("offset = %d", ix.Files[f].Offset)
+	}
+}
+
+func TestScanReportsChangesPrunesAndCapsPrompt(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "p"), 0o700)
+	f := filepath.Join(dir, "p", "s.jsonl")
+	long := strings.Repeat("é", maxPrompt)
+	os.WriteFile(f, []byte(`{"type":"user","message":{"content":"`+long+`"}}`+"\n"), 0o600)
+	ix := Load("")
+	if changed, err := ix.Scan(dir, "github.example"); err != nil || !changed {
+		t.Fatalf("new file: changed=%v err=%v", changed, err)
+	}
+	if p := ix.Files[f].LastPrompt; len(p) > maxPrompt || !strings.HasPrefix(long, p) {
+		t.Fatalf("last prompt not capped on a rune boundary: %d bytes", len(p))
+	}
+	if changed, _ := ix.Scan(dir, "github.example"); changed {
+		t.Fatal("unchanged files must not ask for a save")
+	}
+	os.Remove(f)
+	if changed, _ := ix.Scan(dir, "github.example"); !changed || len(ix.Files) != 0 {
+		t.Fatalf("deleted transcript must drop its mark: changed=%v files=%v", changed, ix.Files)
 	}
 }

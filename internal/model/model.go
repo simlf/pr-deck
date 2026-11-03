@@ -152,11 +152,13 @@ type Comment struct {
 
 // PairRef places a PR in an ordered eng → prod chain.
 type PairRef struct {
-	ID       string `json:"id"`              // stable chain id
-	Order    int    `json:"order"`           // 1-based merge order
-	After    string `json:"after,omitempty"` // key of the PR that must merge first
-	Inferred bool   `json:"inferred,omitempty"`
-	Source   string `json:"source"` // trailer | heuristic | manual
+	ID    string `json:"id"`              // stable chain id
+	Order int    `json:"order"`           // 1-based merge order
+	After string `json:"after,omitempty"` // key of the PR that must merge first
+	// Also lists further Merge-after: PRs (fan-in) that must merge first too.
+	Also     []string `json:"also,omitempty"`
+	Inferred bool     `json:"inferred,omitempty"`
+	Source   string   `json:"source"` // trailer | heuristic | manual
 }
 
 // Snapshot is what the daemon caches and every view renders.

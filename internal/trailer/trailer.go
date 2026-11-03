@@ -4,11 +4,13 @@
 //	Purpose: one plain-language sentence saying why this PR exists
 //	Merge-after: #318            (same repo)
 //	Merge-after: owner/repo#318  (another repo)
+//	Merge-after: https://github.com/owner/repo/pull/318
 //	Topic: prod PDB              (groups sibling PRs of one initiative)
 //	Hold-until: 2026-10-29 19:00 Europe/Paris
 //	Hold: waiting for the vendor  (held with no date)
 //
-// Topic and Hold lines may also sit in a list bullet or in bold.
+// Every line may also sit in a list bullet or in bold, and a PR may carry
+// several Merge-after: lines.
 package trailer
 
 import (
@@ -19,11 +21,12 @@ import (
 )
 
 var (
-	purposeRe    = regexp.MustCompile(`(?mi)^\s*purpose:\s*(.+?)\s*$`)
-	mergeAfterRe = regexp.MustCompile(`(?mi)^\s*merge-after:\s*([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)?#(\d+)\s*$`)
-	topicRe      = lineRe("topic")
-	holdUntilRe  = lineRe("hold-until")
-	holdRe       = lineRe("hold")
+	purposeRe    = lineRe("purpose")
+	mergeAfterRe = regexp.MustCompile(`(?mi)^\s*(?:[-*+]\s+)?(?:\*\*|__)?merge-after(?:\*\*|__)?:(?:\*\*|__)?\s*` +
+		`(?:https?://[^/\s]+/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/pull/(\d+)/?|([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)?#(\d+))\s*$`)
+	topicRe     = lineRe("topic")
+	holdUntilRe = lineRe("hold-until")
+	holdRe      = lineRe("hold")
 )
 
 // lineRe matches "Key: value", also as "- Key: value" or "**Key:** value".
@@ -85,24 +88,25 @@ func parseWhen(s string) (time.Time, bool) {
 }
 
 // Purpose returns the body's Purpose: line, or "".
-func Purpose(body string) string {
-	m := purposeRe.FindStringSubmatch(body)
-	if m == nil {
-		return ""
-	}
-	return strings.TrimSpace(m[1])
+func Purpose(body string) string { return value(purposeRe, body) }
+
+// Dep is one PR named by a Merge-after: line; Repo is empty for "same repo".
+type Dep struct {
+	Repo   string
+	Number int
 }
 
-// MergeAfter returns the repo (empty for "same repo") and number named by a
-// Merge-after: line, and whether one was found.
-func MergeAfter(body string) (repo string, number int, ok bool) {
-	m := mergeAfterRe.FindStringSubmatch(body)
-	if m == nil {
-		return "", 0, false
+// MergeAfter returns every PR named by a Merge-after: line, in body order.
+func MergeAfter(body string) []Dep {
+	var out []Dep
+	for _, m := range mergeAfterRe.FindAllStringSubmatch(body, -1) {
+		repo, num := m[1], m[2]
+		if num == "" {
+			repo, num = m[3], m[4]
+		}
+		if n, err := strconv.Atoi(num); err == nil {
+			out = append(out, Dep{repo, n})
+		}
 	}
-	n, err := strconv.Atoi(m[2])
-	if err != nil {
-		return "", 0, false
-	}
-	return m[1], n, true
+	return out
 }
